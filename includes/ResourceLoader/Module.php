@@ -502,7 +502,7 @@ abstract class Module implements LoggerAwareInterface {
 	 * @see Module::setFileDependencies()
 	 * @see Module::saveFileDependencies()
 	 * @param Context $context
-	 * @return string[] List of absolute file paths
+	 * @return string[] List of relative file paths
 	 */
 	protected function getFileDependencies( Context $context ) {
 		$variant = self::getVary( $context );
@@ -511,7 +511,7 @@ abstract class Module implements LoggerAwareInterface {
 			$depStore = $context->getResourceLoader()->getDependencyStore();
 			$moduleName = $this->getName();
 			$styleDependencies = $depStore->retrieve( "$moduleName|$variant" );
-			$this->fileDeps[$variant] = self::expandRelativePaths( $styleDependencies['paths'] );
+			$this->fileDeps[$variant] = $styleDependencies['paths'];
 		}
 
 		return $this->fileDeps[$variant];
@@ -525,7 +525,7 @@ abstract class Module implements LoggerAwareInterface {
 	 * @see Module::getFileDependencies()
 	 * @see Module::saveFileDependencies()
 	 * @param Context $context
-	 * @param string[] $paths List of absolute file paths
+	 * @param string[] $paths List of relative file paths
 	 */
 	public function setFileDependencies( Context $context, array $paths ) {
 		$variant = self::getVary( $context );
@@ -552,7 +552,7 @@ abstract class Module implements LoggerAwareInterface {
 		//    been normalized yet.
 
 		$paths = self::getRelativePaths( $curFileRefs );
-		$priorPaths = self::getRelativePaths( $this->getFileDependencies( $context ) );
+		$priorPaths = $this->getFileDependencies( $context );
 
 		if ( array_diff( $paths, $priorPaths ) || array_diff( $priorPaths, $paths ) ) {
 			$depStore = $context->getResourceLoader()->getDependencyStore();
@@ -745,7 +745,7 @@ abstract class Module implements LoggerAwareInterface {
 	 */
 	final protected function buildContent( Context $context ) {
 		$statsFactory = MediaWikiServices::getInstance()->getStatsFactory();
-		$statStart = microtime( true );
+		$statStart = hrtime( true );
 
 		// This MUST build both scripts and styles, regardless of whether $context->getOnly()
 		// is 'scripts' or 'styles' because the result is used by getVersionHash which
@@ -821,16 +821,14 @@ abstract class Module implements LoggerAwareInterface {
 			$content['deprecationWarning'] = $deprecationWarning;
 		}
 
-		$statTiming = microtime( true ) - $statStart;
 		$statName = strtr( $this->getName(), '.', '_' );
-
 		$statsFactory->getTiming( 'resourceloader_build_seconds' )
 			->setLabel( 'name', $statName )
 			->copyToStatsdAt( [
 				'resourceloader_build.all',
 				"resourceloader_build.$statName",
 			] )
-			->observe( 1000 * $statTiming );
+			->observeNanoseconds( hrtime( true ) - $statStart );
 
 		return $content;
 	}

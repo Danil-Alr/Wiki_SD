@@ -6,9 +6,11 @@ use MediaWiki\MainConfigNames;
 use MediaWiki\MediaWikiServices;
 use MediaWiki\Message\Message;
 use MediaWiki\Page\PageReferenceValue;
+use PHPUnit\Framework\TestCase;
 use Wikimedia\Assert\ParameterTypeException;
 use Wikimedia\Bcp47Code\Bcp47CodeValue;
 use Wikimedia\Message\MessageSpecifier;
+use Wikimedia\Tests\SerializationTestTrait;
 
 /**
  * @group Language
@@ -17,6 +19,7 @@ use Wikimedia\Message\MessageSpecifier;
  * @covers \MediaWiki\Message\Message
  */
 class MessageTest extends MediaWikiLangTestCase {
+	use SerializationTestTrait;
 
 	protected function setUp(): void {
 		parent::setUp();
@@ -279,6 +282,7 @@ class MessageTest extends MediaWikiLangTestCase {
 				'⧼script&gt;alert(1)&lt;/script⧽' ],
 			[ 'script>alert(1)</script', 'plain', '⧼script&gt;alert(1)&lt;/script⧽',
 				'⧼script&gt;alert(1)&lt;/script⧽' ],
+			[ "\u{0338}isolated combining char", 'escaped', '⧼&#x338;isolated combining char⧽', '⧼&#x338;isolated combining char⧽' ],
 		];
 	}
 
@@ -306,6 +310,7 @@ class MessageTest extends MediaWikiLangTestCase {
 				'&lt;script&gt;alert(1)&lt;/script&gt;' ],
 			[ '<script>alert(1)</script>', 'plain', '<script>alert(1)</script>',
 				'&lt;script&gt;alert(1)&lt;/script&gt;' ],
+			[ "\u{0338}isolated combining char", 'escaped', '&#x338;isolated combining char', '&#x338;isolated combining char' ],
 		];
 	}
 
@@ -566,28 +571,28 @@ class MessageTest extends MediaWikiLangTestCase {
 	public static function providePlaintextParams() {
 		return [
 			[
-				'one $2 <div>foo</div> [[Bar]] {{Baz}} &lt;',
+				"one $2 <div>\u{0338}foo</div> [[Bar]] {{Baz}} &lt;",
 				'plain',
 			],
 
 			[
 				// expect
-				'one $2 <div>foo</div> [[Bar]] {{Baz}} &lt;',
+				"one $2 <div>\u{0338}foo</div> [[Bar]] {{Baz}} &lt;",
 				// format
 				'text',
 			],
 			[
-				'one $2 &lt;div&gt;foo&lt;/div&gt; [[Bar]] {{Baz}} &amp;lt;',
+				'one $2 &lt;div&gt;&#x338;foo&lt;/div&gt; [[Bar]] {{Baz}} &amp;lt;',
 				'escaped',
 			],
 
 			[
-				'one $2 &lt;div&gt;foo&lt;/div&gt; [[Bar]] {{Baz}} &amp;lt;',
+				'one $2 &lt;div&gt;&#x338;foo&lt;/div&gt; [[Bar]] {{Baz}} &amp;lt;',
 				'parse',
 			],
 
 			[
-				"<p>one $2 &lt;div&gt;foo&lt;/div&gt; [[Bar]] {{Baz}} &amp;lt;\n</p>",
+				"<p>one $2 &lt;div&gt;&#x338;foo&lt;/div&gt; [[Bar]] {{Baz}} &amp;lt;\n</p>",
 				'parseAsBlock',
 			],
 		];
@@ -600,7 +605,7 @@ class MessageTest extends MediaWikiLangTestCase {
 		$msg = new RawMessage( '$1 $2' );
 		$params = [
 			'one $2',
-			'<div>foo</div> [[Bar]] {{Baz}} &lt;',
+			"<div>\u{0338}foo</div> [[Bar]] {{Baz}} &lt;",
 		];
 		$this->assertSame(
 			$expect,
@@ -854,69 +859,68 @@ class MessageTest extends MediaWikiLangTestCase {
 	}
 
 	/**
-	 * @dataProvider provideSerializationRoundtrip
+	 * Overrides SerializationTestTrait::getClassToTest
+	 * @return string
 	 */
-	public function testSerialization( $msgFunc, $serialized, $parsed ) {
-		$msg = $msgFunc();
-		$this->assertSame( $serialized, serialize( $msg ) );
-		$this->assertSame( $parsed, $msg->parse() );
+	public static function getClassToTest(): string {
+		return Message::class;
 	}
 
 	/**
-	 * @dataProvider provideSerializationRoundtrip
-	 * @dataProvider provideSerializationLegacy
+	 * Overrides SerializationTestTrait::getSerializedDataPath
+	 * @return string
 	 */
-	public function testUnserialization( $msgFunc, $serialized, $parsed ) {
-		$msg = $msgFunc();
-		$this->assertEquals( $msg, unserialize( $serialized ) );
-		$this->assertSame( $parsed, unserialize( $serialized )->parse() );
+	public static function getSerializedDataPath(): string {
+		return __DIR__ . '/../../data/Message';
 	}
 
-	public static function provideSerializationRoundtrip() {
-		// Test cases where we can test both serialization and unserialization.
-		// These really ought to use the MessageSerializationTestTrait, but
-		// doing so is complicated (T373719).
-
-		yield "Serializing raw parameters" => [
-			static fn () => ( new Message( 'parentheses' ) )->rawParams( '<a>foo</a>' ),
-			'O:25:"MediaWiki\Message\Message":7:{s:9:"interface";b:1;s:8:"language";N;s:3:"key";s:11:"parentheses";s:9:"keysToTry";a:1:{i:0;s:11:"parentheses";}s:10:"parameters";a:1:{i:0;O:29:"Wikimedia\Message\ScalarParam":2:{s:7:"' . chr( 0 ) . '*' . chr( 0 ) . 'type";s:3:"raw";s:8:"' . chr( 0 ) . '*' . chr( 0 ) . 'value";s:10:"<a>foo</a>";}}s:11:"useDatabase";b:1;s:10:"titlevalue";N;}',
-			'(<a>foo</a>)',
-		];
-
-		yield "Serializing message with a context page" => [
-			static fn () => ( new Message( 'rawmessage', [ '{{PAGENAME}}' ] ) )
-				->page( PageReferenceValue::localReference( NS_MAIN, 'Testing' ) ),
-			'O:25:"MediaWiki\Message\Message":7:{s:9:"interface";b:1;s:8:"language";N;s:3:"key";s:10:"rawmessage";s:9:"keysToTry";a:1:{i:0;s:10:"rawmessage";}s:10:"parameters";a:1:{i:0;s:12:"{{PAGENAME}}";}s:11:"useDatabase";b:1;s:10:"titlevalue";a:2:{i:0;i:0;i:1;s:7:"Testing";}}',
-			'Testing',
-		];
-
-		yield "Serializing language" => [
-			static fn () => ( new Message( 'mainpage' ) )->inLanguage( 'de' ),
-			'O:25:"MediaWiki\Message\Message":7:{s:9:"interface";b:0;s:8:"language";s:2:"de";s:3:"key";s:8:"mainpage";s:9:"keysToTry";a:1:{i:0;s:8:"mainpage";}s:10:"parameters";a:0:{}s:11:"useDatabase";b:1;s:10:"titlevalue";N;}',
-			'Hauptseite',
+	/**
+	 * Overrides SerializationTestTrait::getTestInstancesAndAssertions
+	 * @return array
+	 */
+	public static function getTestInstancesAndAssertions(): array {
+		return [
+			'simple' => [
+				'instance' => new Message( 'mainpage' ),
+				'assertions' => static function ( TestCase $testCase, Message $msg ) {
+					$testCase->assertSame( 'Main Page', $msg->plain() );
+				}
+			],
+			'rawParam' => [
+				'instance' => ( new Message( 'parentheses' ) )
+					->rawParams( '<a>foo</a>' ),
+				'assertions' => static function ( TestCase $testCase, Message $msg ) {
+					$testCase->assertSame( '(<a>foo</a>)', $msg->parse() );
+				}
+			],
+			'contextPage' => [
+				'instance' => ( new Message( 'rawmessage', [ '{{PAGENAME}}' ] ) )
+					->page( PageReferenceValue::localReference( NS_MAIN, 'Testing' ) ),
+				'assertions' => static function ( TestCase $testCase, Message $msg ) {
+					$testCase->assertSame( 'Testing', $msg->text() );
+				}
+			],
+			'language' => [
+				'instance' => ( new Message( 'mainpage' ) )
+					->inLanguage( 'de' ),
+				'assertions' => static function ( TestCase $testCase, Message $msg ) {
+					$testCase->assertSame( 'Hauptseite', $msg->plain() );
+				}
+			],
 		];
 	}
 
-	public static function provideSerializationLegacy() {
-		// Test cases where we can test only unserialization, because the serialization format changed.
-
-		yield "MW 1.42: Magic arrays instead of MessageParam objects" => [
-			static fn () => ( new Message( 'parentheses' ) )->rawParams( '<a>foo</a>' ),
-			'O:25:"MediaWiki\Message\Message":7:{s:9:"interface";b:1;s:8:"language";N;s:3:"key";s:11:"parentheses";s:9:"keysToTry";a:1:{i:0;s:11:"parentheses";}s:10:"parameters";a:1:{i:0;a:1:{s:3:"raw";s:10:"<a>foo</a>";}}s:11:"useDatabase";b:1;s:10:"titlevalue";N;}',
-			'(<a>foo</a>)',
-		];
-
-		yield "MW 1.41: Un-namespaced class" => [
-			static fn () => new Message( 'mainpage' ),
-			'O:7:"Message":7:{s:9:"interface";b:1;s:8:"language";N;s:3:"key";s:8:"mainpage";s:9:"keysToTry";a:1:{i:0;s:8:"mainpage";}s:10:"parameters";a:0:{}s:11:"useDatabase";b:1;s:10:"titlevalue";N;}',
-			'Main Page',
-		];
-
-		yield "MW 1.34: 'titlestr' instead of 'titlevalue'" => [
-			static fn () => ( new Message( 'rawmessage', [ '{{PAGENAME}}' ] ) )
-				->page( PageReferenceValue::localReference( NS_MAIN, 'Testing' ) ),
-			'C:7:"Message":242:{a:8:{s:9:"interface";b:1;s:8:"language";b:0;s:3:"key";s:10:"rawmessage";s:9:"keysToTry";a:1:{i:0;s:10:"rawmessage";}s:10:"parameters";a:1:{i:0;s:12:"{{PAGENAME}}";}s:6:"format";s:5:"parse";s:11:"useDatabase";b:1;s:8:"titlestr";s:7:"Testing";}}',
-			'Testing',
+	/**
+	 * Overrides SerializationTestTrait::getSupportedSerializationFormats
+	 * @return array
+	 */
+	public static function getSupportedSerializationFormats(): array {
+		return [
+			[
+				'ext' => 'serialized',
+				'serializer' => 'serialize',
+				'deserializer' => 'unserialize'
+			]
 		];
 	}
 
@@ -971,4 +975,31 @@ class MessageTest extends MediaWikiLangTestCase {
 			],
 		];
 	}
+
+	public static function provideFallbackLanguageParsing() {
+		return [
+			[ 'en', '21 days' ],
+			[ 'ru', '21 день' ],
+			[ 'be', '21 days' ]
+		];
+	}
+
+	/**
+	 * Integration test for T268492
+	 *
+	 * @dataProvider provideFallbackLanguageParsing
+	 */
+	public function testFallbackLanguageParsing( $lang, $expected ) {
+		$this->overrideConfigValue(
+			MainConfigNames::MessagesDirs,
+			array_merge(
+				$this->getConfVar( MainConfigNames::MessagesDirs ),
+				[ MW_INSTALL_PATH . '/tests/phpunit/data/Message' ]
+			)
+		);
+		$text = ( new Message( 'test-days', [ 21 ] ) )
+			->inLanguage( $lang )->text();
+		$this->assertSame( $expected, $text );
+	}
+
 }

@@ -25,7 +25,6 @@ namespace Wikimedia\FileBackend;
 
 use InvalidArgumentException;
 use LockManager;
-use MapCacheLRU;
 use Shellbox\Command\BoxedCommand;
 use StatusValue;
 use Traversable;
@@ -42,6 +41,7 @@ use Wikimedia\FileBackend\FileOps\MoveFileOp;
 use Wikimedia\FileBackend\FileOps\NullFileOp;
 use Wikimedia\FileBackend\FileOps\StoreFileOp;
 use Wikimedia\FileBackend\FSFile\FSFile;
+use Wikimedia\MapCacheLRU\MapCacheLRU;
 use Wikimedia\ObjectCache\BagOStuff;
 use Wikimedia\ObjectCache\EmptyBagOStuff;
 use Wikimedia\ObjectCache\WANObjectCache;
@@ -395,9 +395,9 @@ abstract class FileBackendStore extends FileBackend {
 		$scopeLockS = $this->getScopedFileLocks( $params['srcs'], LockManager::LOCK_UW, $status );
 		if ( $status->isOK() ) {
 			// Actually do the file concatenation...
-			$start_time = microtime( true );
+			$hrStart = hrtime( true );
 			$status->merge( $this->doConcatenate( $params ) );
-			$sec = microtime( true ) - $start_time;
+			$sec = ( hrtime( true ) - $hrStart ) / 1e9;
 			if ( !$status->isOK() ) {
 				$this->logger->error( static::class . "-{$this->name}" .
 					" failed to concatenate " . count( $params['srcs'] ) . " file(s) [$sec sec]" );
@@ -1623,7 +1623,7 @@ abstract class FileBackendStore extends FileBackend {
 	 */
 	final protected function resolveStoragePath( $storagePath ) {
 		[ $backend, $shortCont, $relPath ] = self::splitStoragePath( $storagePath );
-		if ( $backend === $this->name ) { // must be for this backend
+		if ( $backend === $this->name && $relPath !== null ) { // must be for this backend
 			$relPath = self::normalizeContainerPath( $relPath );
 			if ( $relPath !== null && self::isValidShortContainerName( $shortCont ) ) {
 				// Get shard for the normalized path if this container is sharded

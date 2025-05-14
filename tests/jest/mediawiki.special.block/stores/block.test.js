@@ -72,7 +72,7 @@ describe( 'Block store', () => {
 		expect( store.targetExists ).toStrictEqual( true );
 		expect( store.type ).toStrictEqual( 'sitewide' );
 		expect( store.expiry ).toStrictEqual( '' );
-		expect( store.reason ).toStrictEqual( 'other' );
+		expect( store.reason ).toStrictEqual( '' );
 		store.resetForm( true );
 		expect( store.targetUser ).toStrictEqual( '' );
 		expect( store.targetExists ).toStrictEqual( false );
@@ -90,6 +90,23 @@ describe( 'Block store', () => {
 		expect( store.targetUser ).toStrictEqual( 'ExampleUserOther' );
 		expect( store.blockId ).toBeNull();
 		expect( store.formVisible ).toBeFalsy();
+	} );
+
+	it( 'should update the URL when the targetUser, blockId or removalConfirmationOpen changes', async () => {
+		// Add extraneous forward slash to ensure it gets stripped.
+		mockMwConfigGet( { wgPageName: 'Special:Block/' } );
+		const store = useBlockStore();
+		store.targetUser = 'ExampleUser';
+		await nextTick();
+		expect( location.pathname ).toStrictEqual( '/wiki/Special:Block/ExampleUser' );
+		// Add some extra params to the URL. This also tests that 'title=' is removed.
+		history.replaceState( {}, '', '/wiki/Special:Block/ExampleUser?title=Special:Block&foo=bar' );
+		store.blockId = 1234;
+		await nextTick();
+		expect( location.search ).toStrictEqual( '?foo=bar&id=1234' );
+		store.removalConfirmationOpen = true;
+		await nextTick();
+		expect( location.search ).toStrictEqual( '?foo=bar&id=1234&remove=1' );
 	} );
 } );
 

@@ -1557,6 +1557,12 @@ $wgParserCacheExpireTime = null;
 $wgParserCacheAsyncExpireTime = null;
 
 /**
+ * Config variable stub for the ParserCacheAsyncRefreshJobs setting, for use by phpdoc and IDEs.
+ * @see MediaWiki\MainConfigSchema::ParserCacheAsyncRefreshJobs
+ */
+$wgParserCacheAsyncRefreshJobs = null;
+
+/**
  * Config variable stub for the OldRevisionParserCacheExpireTime setting, for use by phpdoc and IDEs.
  * @see MediaWiki\MainConfigSchema::OldRevisionParserCacheExpireTime
  */
@@ -2372,18 +2378,6 @@ $wgTidyConfig = null;
  * @see MediaWiki\MainConfigSchema::ParsoidSettings
  */
 $wgParsoidSettings = null;
-
-/**
- * Config variable stub for the ParsoidFragmentSupport setting, for use by phpdoc and IDEs.
- * @see MediaWiki\MainConfigSchema::ParsoidFragmentSupport
- */
-$wgParsoidFragmentSupport = null;
-
-/**
- * Config variable stub for the ParsoidFragmentInput setting, for use by phpdoc and IDEs.
- * @see MediaWiki\MainConfigSchema::ParsoidFragmentInput
- */
-$wgParsoidFragmentInput = null;
 
 /**
  * Config variable stub for the ParsoidExperimentalParserFunctionOutput setting, for use by phpdoc and IDEs.
@@ -4526,3 +4520,9 @@ $wgEnableProtectionIndicators = null;
  * @see MediaWiki\MainConfigSchema::OutputPipelineStages
  */
 $wgOutputPipelineStages = null;
+
+/**
+ * Config variable stub for the FeatureShutdown setting, for use by phpdoc and IDEs.
+ * @see MediaWiki\MainConfigSchema::FeatureShutdown
+ */
+$wgFeatureShutdown = null;

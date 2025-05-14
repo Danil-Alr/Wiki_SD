@@ -14,6 +14,7 @@ use MediaWiki\MainConfigNames;
 use MediaWiki\MediaWikiServices;
 use MediaWiki\Page\PageIdentity;
 use MediaWiki\Page\PageIdentityValue;
+use MediaWiki\Page\WikiPage;
 use MediaWiki\Revision\IncompleteRevisionException;
 use MediaWiki\Revision\MutableRevisionRecord;
 use MediaWiki\Revision\RevisionAccessException;
@@ -48,7 +49,6 @@ use Wikimedia\Rdbms\ILoadBalancer;
 use Wikimedia\Rdbms\LoadBalancer;
 use Wikimedia\Rdbms\TransactionProfiler;
 use Wikimedia\TestingAccessWrapper;
-use WikiPage;
 
 /**
  * @group Database
@@ -344,12 +344,12 @@ class RevisionStoreDbTest extends MediaWikiIntegrationTestCase {
 		return $rev;
 	}
 
-	public function provideInsertRevisionOn_successes() {
+	public static function provideInsertRevisionOn_successes() {
 		yield 'Bare minimum revision insertion' => [
 			[
 				'slot' => SlotRecord::newUnsaved( SlotRecord::MAIN, new WikitextContent( 'Chicken' ) ),
 				'page' => true,
-				'comment' => $this->getRandomCommentStoreComment(),
+				'comment' => self::getRandomCommentStoreComment(),
 				'timestamp' => '20171117010101',
 				'user' => true,
 			],
@@ -359,7 +359,7 @@ class RevisionStoreDbTest extends MediaWikiIntegrationTestCase {
 				'slot' => SlotRecord::newUnsaved( SlotRecord::MAIN, new WikitextContent( 'Chicken' ) ),
 				'parent' => true,
 				'page' => true,
-				'comment' => $this->getRandomCommentStoreComment(),
+				'comment' => self::getRandomCommentStoreComment(),
 				'timestamp' => '20171117010101',
 				'user' => true,
 				'minor' => true,
@@ -373,14 +373,14 @@ class RevisionStoreDbTest extends MediaWikiIntegrationTestCase {
 					'aux' => new TextContent( 'Egg' ),
 				],
 				'page' => true,
-				'comment' => $this->getRandomCommentStoreComment(),
+				'comment' => self::getRandomCommentStoreComment(),
 				'timestamp' => '20171117010101',
 				'user' => true,
 			],
 		];
 	}
 
-	protected function getRandomCommentStoreComment() {
+	protected static function getRandomCommentStoreComment() {
 		return CommentStoreComment::newUnsavedComment( __METHOD__ . '.' . rand( 0, 1000 ) );
 	}
 
@@ -479,7 +479,7 @@ class RevisionStoreDbTest extends MediaWikiIntegrationTestCase {
 		$revDetails = [
 			'slot' => SlotRecord::newUnsaved( SlotRecord::MAIN, new WikitextContent( 'Chicken' ) ),
 			'parent' => true,
-			'comment' => $this->getRandomCommentStoreComment(),
+			'comment' => self::getRandomCommentStoreComment(),
 			'timestamp' => '20171117010101',
 			'user' => true,
 		];
@@ -512,10 +512,10 @@ class RevisionStoreDbTest extends MediaWikiIntegrationTestCase {
 		$this->assertSame( $secondReturn->getId(), $secondMainSlot->getRevision() );
 	}
 
-	public function provideInsertRevisionOn_failures() {
+	public static function provideInsertRevisionOn_failures() {
 		yield 'no slot' => [
 			[
-				'comment' => $this->getRandomCommentStoreComment(),
+				'comment' => self::getRandomCommentStoreComment(),
 				'timestamp' => '20171117010101',
 				'user' => true,
 			],
@@ -524,7 +524,7 @@ class RevisionStoreDbTest extends MediaWikiIntegrationTestCase {
 		yield 'no main slot' => [
 			[
 				'slot' => SlotRecord::newUnsaved( 'aux', new WikitextContent( 'Turkey' ) ),
-				'comment' => $this->getRandomCommentStoreComment(),
+				'comment' => self::getRandomCommentStoreComment(),
 				'timestamp' => '20171117010101',
 				'user' => true,
 			],
@@ -533,7 +533,7 @@ class RevisionStoreDbTest extends MediaWikiIntegrationTestCase {
 		yield 'no timestamp' => [
 			[
 				'slot' => SlotRecord::newUnsaved( SlotRecord::MAIN, new WikitextContent( 'Chicken' ) ),
-				'comment' => $this->getRandomCommentStoreComment(),
+				'comment' => self::getRandomCommentStoreComment(),
 				'user' => true,
 			],
 			new IncompleteRevisionException( 'timestamp field must not be NULL!' )
@@ -549,7 +549,7 @@ class RevisionStoreDbTest extends MediaWikiIntegrationTestCase {
 		yield 'no user' => [
 			[
 				'slot' => SlotRecord::newUnsaved( SlotRecord::MAIN, new WikitextContent( 'Chicken' ) ),
-				'comment' => $this->getRandomCommentStoreComment(),
+				'comment' => self::getRandomCommentStoreComment(),
 				'timestamp' => '20171117010101',
 			],
 			new IncompleteRevisionException( 'user must not be NULL!' )
@@ -557,7 +557,7 @@ class RevisionStoreDbTest extends MediaWikiIntegrationTestCase {
 		yield 'size mismatch' => [
 			[
 				'slot' => SlotRecord::newUnsaved( SlotRecord::MAIN, new WikitextContent( 'Chicken' ) ),
-				'comment' => $this->getRandomCommentStoreComment(),
+				'comment' => self::getRandomCommentStoreComment(),
 				'timestamp' => '20171117010101',
 				'user' => true,
 				'size' => 123456
@@ -567,7 +567,7 @@ class RevisionStoreDbTest extends MediaWikiIntegrationTestCase {
 		yield 'sha1 mismatch' => [
 			[
 				'slot' => SlotRecord::newUnsaved( SlotRecord::MAIN, new WikitextContent( 'Chicken' ) ),
-				'comment' => $this->getRandomCommentStoreComment(),
+				'comment' => self::getRandomCommentStoreComment(),
 				'timestamp' => '20171117010101',
 				'user' => true,
 				'sha1' => 'DEADBEEF',
@@ -851,7 +851,7 @@ class RevisionStoreDbTest extends MediaWikiIntegrationTestCase {
 	 */
 	public function testGetRevisionByTitle( $getTitle ) {
 		$page = $this->getTestPage();
-		$title = $getTitle();
+		$title = $getTitle( $this );
 		$content = new WikitextContent( __METHOD__ );
 		$status = $page->doUserEditContent(
 			$content,
@@ -868,13 +868,13 @@ class RevisionStoreDbTest extends MediaWikiIntegrationTestCase {
 		$this->assertSame( __METHOD__, $storeRecord->getComment()->text );
 	}
 
-	public function provideRevisionByTitle() {
+	public static function provideRevisionByTitle() {
 		return [
-			[ function () {
-				return $this->getTestPageTitle();
+			[ static function ( $testCase ) {
+				return $testCase->getTestPageTitle();
 			} ],
-			[ function () {
-				return $this->getTestPageTitle()->toPageIdentity();
+			[ static function ( $testCase ) {
+				return $testCase->getTestPageTitle()->toPageIdentity();
 			} ]
 		];
 	}
@@ -1000,7 +1000,7 @@ class RevisionStoreDbTest extends MediaWikiIntegrationTestCase {
 		// Otherwise we might not get the correct revision and the test may fail...
 		MWTimestamp::setFakeTime( '20110401090000' );
 		$page = $this->getTestPage();
-		$title = $getTitle();
+		$title = $getTitle( $this );
 		MWTimestamp::setFakeTime( '20110401090001' );
 		$content = new WikitextContent( __METHOD__ );
 		$status = $page->doUserEditContent(
@@ -1846,7 +1846,7 @@ class RevisionStoreDbTest extends MediaWikiIntegrationTestCase {
 		)->getNewRevision();
 		$store = $this->getServiceContainer()->getRevisionStore();
 		$storeRecord = $store->getKnownCurrentRevision(
-			$getPageIdentity(),
+			$getPageIdentity( $this ),
 			$revRecord->getId()
 		);
 		$this->assertRevisionRecordsEqual( $revRecord, $storeRecord );
@@ -1869,9 +1869,6 @@ class RevisionStoreDbTest extends MediaWikiIntegrationTestCase {
 	}
 
 	public function testGetKnownCurrentRevision_userNameChange() {
-		$cache = new WANObjectCache( [ 'cache' => new HashBagOStuff() ] );
-		$this->setService( 'MainWANObjectCache', $cache );
-
 		$store = $this->getServiceContainer()->getRevisionStore();
 		$page = $this->getNonexistingTestPage();
 		$rev = $this->createRevisionStoreCacheRecord( $page, $store );
@@ -1907,9 +1904,6 @@ class RevisionStoreDbTest extends MediaWikiIntegrationTestCase {
 	}
 
 	public function testGetKnownCurrentRevision_stalePageId() {
-		$cache = new WANObjectCache( [ 'cache' => new HashBagOStuff() ] );
-		$this->setService( 'MainWANObjectCache', $cache );
-
 		$store = $this->getServiceContainer()->getRevisionStore();
 		$page = $this->getNonexistingTestPage();
 		$rev = $this->createRevisionStoreCacheRecord( $page, $store );
@@ -1924,9 +1918,6 @@ class RevisionStoreDbTest extends MediaWikiIntegrationTestCase {
 	}
 
 	public function testGetKnownCurrentRevision_wrongTitle() {
-		$cache = new WANObjectCache( [ 'cache' => new HashBagOStuff() ] );
-		$this->setService( 'MainWANObjectCache', $cache );
-
 		$store = $this->getServiceContainer()->getRevisionStore();
 		$page = $this->getNonexistingTestPage();
 		$rev = $this->createRevisionStoreCacheRecord( $page, $store );
@@ -1940,9 +1931,6 @@ class RevisionStoreDbTest extends MediaWikiIntegrationTestCase {
 	}
 
 	public function testGetKnownCurrentRevision_revDelete() {
-		$cache = new WANObjectCache( [ 'cache' => new HashBagOStuff() ] );
-		$this->setService( 'MainWANObjectCache', $cache );
-
 		$store = $this->getServiceContainer()->getRevisionStore();
 		$page = $this->getNonexistingTestPage();
 		$rev = $this->createRevisionStoreCacheRecord( $page, $store );
@@ -2676,7 +2664,7 @@ class RevisionStoreDbTest extends MediaWikiIntegrationTestCase {
 	}
 
 	public function testGetFirstRevision() {
-		$pageIdentity = PageIdentityValue::localIdentity( 13, NS_MAIN, 'Test_Get_First_Revision' );
+		$pageIdentity = Title::newFromText( __FUNCTION__ );
 		$editStatus = $this->editPage( $pageIdentity, 'First Revision' );
 		$this->assertStatusGood( $editStatus, 'must create first revision' );
 		$firstRevId = $editStatus->getNewRevision()->getId();

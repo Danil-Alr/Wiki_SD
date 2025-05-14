@@ -7,8 +7,6 @@ use Exception;
 use Generator;
 use MediaWiki\Content\JavaScriptContent;
 use MediaWiki\Content\WikitextContent;
-use MediaWiki\Language\Language;
-use MediaWiki\Language\LanguageCode;
 use MediaWiki\MainConfigNames;
 use MediaWiki\Page\PageIdentity;
 use MediaWiki\Parser\ParserCache;
@@ -38,6 +36,8 @@ use MediaWiki\Title\TitleValue;
 use MediaWiki\User\UserIdentityValue;
 use MediaWikiIntegrationTestCase;
 use PHPUnit\Framework\MockObject\MockObject;
+use Wikimedia\Bcp47Code\Bcp47Code;
+use Wikimedia\Bcp47Code\Bcp47CodeValue;
 use Wikimedia\Message\MessageValue;
 use Wikimedia\Parsoid\Config\DataAccess;
 use Wikimedia\Parsoid\Config\PageConfig;
@@ -115,18 +115,15 @@ class ParsoidHandlerTest extends MediaWikiIntegrationTestCase {
 			?? $this->getServiceContainer()->getParsoidPageConfigFactory();
 
 		$handler = new class (
-			$this,
 			$revisionLookup,
 			$siteConfig,
 			$pageConfigFactory,
 			$dataAccess,
 			$methodOverrides
 		) extends ParsoidHandler {
-			private $testCase;
 			private $overrides;
 
 			public function __construct(
-				$testCase,
 				RevisionLookup $revisionLookup,
 				SiteConfig $siteConfig,
 				PageConfigFactory $pageConfigFactory,
@@ -140,7 +137,6 @@ class ParsoidHandlerTest extends MediaWikiIntegrationTestCase {
 					$dataAccess
 				);
 
-				$this->testCase = $testCase;
 				$this->overrides = $overrides;
 			}
 
@@ -216,7 +212,7 @@ class ParsoidHandlerTest extends MediaWikiIntegrationTestCase {
 					);
 				}
 				$attribs += [
-					'pagelanguage' => $this->testCase->createLanguageMock( 'en' ),
+					'pagelanguage' => new Bcp47CodeValue( 'en' ),
 				];
 
 				return parent::tryToCreatePageConfig(
@@ -322,12 +318,12 @@ class ParsoidHandlerTest extends MediaWikiIntegrationTestCase {
 		return $pageConfigFactory;
 	}
 
-	private function getTextFromFile( string $name ): string {
+	private static function getTextFromFile( string $name ): string {
 		return trim( file_get_contents( __DIR__ . "/data/Transform/$name" ) );
 	}
 
-	private function getJsonFromFile( string $name ): array {
-		$text = $this->getTextFromFile( $name );
+	private static function getJsonFromFile( string $name ): array {
+		$text = self::getTextFromFile( $name );
 		return json_decode( $text, JSON_OBJECT_AS_ARRAY );
 	}
 
@@ -359,7 +355,7 @@ class ParsoidHandlerTest extends MediaWikiIntegrationTestCase {
 		return $expectedMime === $actualMime && $expectedSpec === $actualSpec;
 	}
 
-	public function provideHtml2wt() {
+	public static function provideHtml2wt() {
 		$profileVersion = '2.6.0';
 		$wikitextProfileUri = 'https://www.mediawiki.org/wiki/Specs/wikitext/1.0.0';
 		$htmlProfileUri = 'https://www.mediawiki.org/wiki/Specs/HTML/' . $profileVersion;
@@ -380,7 +376,7 @@ class ParsoidHandlerTest extends MediaWikiIntegrationTestCase {
 		];
 
 		// should convert html to wikitext ///////////////////////////////////
-		$html = $this->getTextFromFile( 'MainPage-data-parsoid.html' );
+		$html = self::getTextFromFile( 'MainPage-data-parsoid.html' );
 		$expectedText = [
 			'MediaWiki has been successfully installed',
 			'== Getting started ==',
@@ -404,7 +400,7 @@ class ParsoidHandlerTest extends MediaWikiIntegrationTestCase {
 		];
 
 		// should accept original wikitext in body ////////////////////
-		$originalWikitext = $this->getTextFromFile( 'OriginalMainPage.wikitext' );
+		$originalWikitext = self::getTextFromFile( 'OriginalMainPage.wikitext' );
 		$attribs = [
 			'opts' => [
 				'original' => [
@@ -424,14 +420,14 @@ class ParsoidHandlerTest extends MediaWikiIntegrationTestCase {
 		];
 
 		// should use original html for selser (default) //////////////////////
-		$originalDataParsoid = $this->getJsonFromFile( 'MainPage-original.data-parsoid' );
+		$originalDataParsoid = self::getJsonFromFile( 'MainPage-original.data-parsoid' );
 		$attribs = [
 			'opts' => [
 				'from' => ParsoidFormatHelper::FORMAT_PAGEBUNDLE,
 				'original' => [
 					'html' => [
 						'headers' => $htmlHeaders,
-						'body' => $this->getTextFromFile( 'MainPage-original.html' ),
+						'body' => self::getTextFromFile( 'MainPage-original.html' ),
 					],
 					'data-parsoid' => [
 						'headers' => [
@@ -459,7 +455,7 @@ class ParsoidHandlerTest extends MediaWikiIntegrationTestCase {
 							//      version given in the HTML?
 							'content-type' => 'text/html; profile="mediawiki.org/specs/html/1.1.1"',
 						],
-						'body' => $this->getTextFromFile( 'MainPage-data-parsoid-1.1.1.html' ),
+						'body' => self::getTextFromFile( 'MainPage-data-parsoid-1.1.1.html' ),
 					],
 					'data-parsoid' => [
 						'headers' => [
@@ -487,7 +483,7 @@ class ParsoidHandlerTest extends MediaWikiIntegrationTestCase {
 							'content-type' => 'text/html; profile="mediawiki.org/specs/html/1.1.1"',
 						],
 						// No schema version in HTML
-						'body' => $this->getTextFromFile( 'MainPage-original.html' ),
+						'body' => self::getTextFromFile( 'MainPage-original.html' ),
 					],
 					'data-parsoid' => [
 						'headers' => [
@@ -507,7 +503,7 @@ class ParsoidHandlerTest extends MediaWikiIntegrationTestCase {
 		// Return original wikitext when HTML doesn't change ////////////////////////////
 		// New and old html are identical, which should produce no diffs
 		// and reuse the original wikitext.
-		$html = $this->getTextFromFile( 'Selser.html' );
+		$html = self::getTextFromFile( 'Selser.html' );
 
 		// Original wikitext (to be preserved by selser)
 		$originalWikitext = self::IMPERFECT_WIKITEXT;
@@ -748,7 +744,7 @@ class ParsoidHandlerTest extends MediaWikiIntegrationTestCase {
 		];
 
 		// should apply original data-mw when modified is absent (captions 1) ///////////
-		$html = $this->getTextFromFile( 'Image.html' );
+		$html = self::getTextFromFile( 'Image.html' );
 		$dataParsoid = [ 'ids' => [
 			'mwAg' => [ 'optList' => [ [ 'ck' => 'caption', 'ak' => 'Testing 123' ] ] ],
 			'mwAw' => [ 'a' => [ 'href' => './File:Foobar.jpg' ], 'sa' => [] ],
@@ -783,7 +779,7 @@ class ParsoidHandlerTest extends MediaWikiIntegrationTestCase {
 		];
 
 		// should give precedence to inline data-mw over modified (captions 2) /////////////
-		$htmlModified = $this->getTextFromFile( 'Image-data-mw.html' );
+		$htmlModified = self::getTextFromFile( 'Image-data-mw.html' );
 		$dataMediaWikiModified = [
 			'ids' => [
 				'mwAg' => [ 'caption' => 'Testing 123' ]
@@ -863,7 +859,7 @@ class ParsoidHandlerTest extends MediaWikiIntegrationTestCase {
 		];
 
 		// should apply version downgrade ///////////
-		$htmlOfMinimal = $this->getTextFromFile( 'Minimal.html' ); // Uses profile version 2.4.0
+		$htmlOfMinimal = self::getTextFromFile( 'Minimal.html' ); // Uses profile version 2.4.0
 		$attribs = [
 			'opts' => [
 				'from' => ParsoidFormatHelper::FORMAT_PAGEBUNDLE,
@@ -888,7 +884,7 @@ class ParsoidHandlerTest extends MediaWikiIntegrationTestCase {
 		];
 
 		// should not apply version downgrade if versions are the same ///////////
-		$htmlOfMinimal = $this->getTextFromFile( 'Minimal.html' ); // Uses profile version 2.4.0
+		$htmlOfMinimal = self::getTextFromFile( 'Minimal.html' ); // Uses profile version 2.4.0
 		$attribs = [
 			'opts' => [
 				'from' => ParsoidFormatHelper::FORMAT_PAGEBUNDLE,
@@ -912,7 +908,7 @@ class ParsoidHandlerTest extends MediaWikiIntegrationTestCase {
 		];
 
 		// should convert html to json ///////////////////////////////////
-		$html = $this->getTextFromFile( 'JsonConfig.html' );
+		$html = self::getTextFromFile( 'JsonConfig.html' );
 		$expectedText = [
 			'{"a":4,"b":3}',
 		];
@@ -932,7 +928,7 @@ class ParsoidHandlerTest extends MediaWikiIntegrationTestCase {
 		];
 
 		// page bundle input should work with no original data present  ///////////
-		$htmlOfMinimal = $this->getTextFromFile( 'Minimal.html' ); // Uses profile version 2.4.0
+		$htmlOfMinimal = self::getTextFromFile( 'Minimal.html' ); // Uses profile version 2.4.0
 		$attribs = [
 			'opts' => [
 				'from' => ParsoidFormatHelper::FORMAT_PAGEBUNDLE,
@@ -1015,7 +1011,7 @@ class ParsoidHandlerTest extends MediaWikiIntegrationTestCase {
 		}
 	}
 
-	public function provideHtml2wtThrows() {
+	public static function provideHtml2wtThrows() {
 		$html = '<html lang="en"><body>123</body></html>';
 
 		$profileVersion = '2.4.0';
@@ -1053,8 +1049,8 @@ class ParsoidHandlerTest extends MediaWikiIntegrationTestCase {
 		];
 
 		// should fail to downgrade the original version for an unknown transition ///////////
-		$htmlOfMinimal = $this->getTextFromFile( 'Minimal.html' );
-		$htmlOfMinimal2222 = $this->getTextFromFile( 'Minimal-2222.html' );
+		$htmlOfMinimal = self::getTextFromFile( 'Minimal.html' );
+		$htmlOfMinimal2222 = self::getTextFromFile( 'Minimal-2222.html' );
 		$attribs = [
 			'opts' => [
 				'from' => ParsoidFormatHelper::FORMAT_PAGEBUNDLE,
@@ -1418,10 +1414,10 @@ class ParsoidHandlerTest extends MediaWikiIntegrationTestCase {
 	}
 
 	/** @return Generator */
-	public function provideTryToCreatePageConfigData() {
-		$en = $this->createLanguageMock( 'en' );
-		$ar = $this->createLanguageMock( 'ar' );
-		$de = $this->createLanguageMock( 'de' );
+	public static function provideTryToCreatePageConfigData() {
+		$en = new Bcp47CodeValue( 'en' );
+		$ar = new Bcp47CodeValue( 'ar' );
+		$de = new Bcp47CodeValue( 'de' );
 		yield 'Default attribs for tryToCreatePageConfig()' => [
 			'attribs' => [ 'oldid' => 1, 'pageName' => 'Test', 'pagelanguage' => $en ],
 			'wikitext' => null,
@@ -1481,7 +1477,7 @@ class ParsoidHandlerTest extends MediaWikiIntegrationTestCase {
 		array $attribs,
 		?string $wikitext,
 		$html2WtMode,
-		Language $expectedLanguage
+		Bcp47Code $expectedLanguage
 	) {
 		// Create a page, if needed, to test with oldid
 		$origContent = 'Test content for ' . __METHOD__;
@@ -1498,22 +1494,32 @@ class ParsoidHandlerTest extends MediaWikiIntegrationTestCase {
 		$pageName = ( $attribs['pageName'] === '' ) ? 'Main Page' : $attribs['pageName'];
 		$this->assertSame( $pageName, $pageConfig->getLinkTarget()->getPrefixedText() );
 
-		$this->assertSame( $expectedLanguage->getCode(), $pageConfig->getPageLanguageBcp47()->getCode() );
+		$this->assertTrue( $expectedLanguage->isSameCodeAs( $pageConfig->getPageLanguageBcp47() ) );
 	}
 
 	/** @return Generator */
-	public function provideTryToCreatePageConfigDataThrows() {
-		$en = $this->createLanguageMock( 'en' );
+	public static function provideTryToCreatePageConfigDataThrows() {
+		$en = new Bcp47CodeValue( 'en' );
+		$missingRevisionException = new LocalizedHttpException(
+			new MessageValue(
+				"rest-specified-revision-unavailable",
+				[ 'The specified revision does not exist.' ]
+			),
+			404
+		);
+
 		yield "PageConfig with oldid that doesn't exist" => [
 			'attribs' => [ 'oldid' => null, 'pageName' => 'Test', 'pagelanguage' => $en ],
 			'wikitext' => null,
 			'html2WtMode' => false,
+			'expected' => $missingRevisionException,
 		];
 
 		yield 'PageConfig with a bad title' => [
 			[ 'oldid' => null, 'pageName' => 'Special:Badtitle', 'pagelanguage' => $en ],
 			'wikitext' => null,
 			'html2WtMode' => false,
+			'expected' => $missingRevisionException,
 		];
 
 		yield "PageConfig with a revision that doesn't exist" => [
@@ -1522,6 +1528,23 @@ class ParsoidHandlerTest extends MediaWikiIntegrationTestCase {
 			[ 'oldid' => 12345678, 'pageName' => 'Test', 'pagelanguage' => $en ],
 			'wikitext' => null,
 			'html2WtMode' => false,
+			'expected' => new LocalizedHttpException(
+				new MessageValue(
+					"rest-specified-revision-unavailable",
+					[ 'Can\'t find revision 12345678' ]
+				),
+				404
+			),
+		];
+
+		yield 'PageConfig with an invalid title' => [
+			[ 'oldid' => null, 'pageName' => 'Talk:File:Foo.jpg', 'pagelanguage' => $en ],
+			'wikitext' => null,
+			'html2WtMode' => false,
+			'expected' => new LocalizedHttpException(
+				new MessageValue( "rest-invalid-title", [ 'pageName' ] ),
+				400
+			),
 		];
 	}
 
@@ -1530,11 +1553,25 @@ class ParsoidHandlerTest extends MediaWikiIntegrationTestCase {
 	 *
 	 * @dataProvider provideTryToCreatePageConfigDataThrows
 	 */
-	public function testTryToCreatePageConfigThrows( array $attribs, $wikitext, $html2WtMode ) {
-		$this->expectException( HttpException::class );
-		$this->expectExceptionCode( 404 );
+	public function testTryToCreatePageConfigThrows(
+		array $attribs,
+		$wikitext,
+		$html2WtMode,
+		HttpException $expected
+	) {
+		try {
+			$this->newParsoidHandler()->tryToCreatePageConfig( $attribs, $wikitext, $html2WtMode );
+			$this->fail( 'Expected exception: ' . get_class( $expected ) );
+		} catch ( HttpException $e ) {
+			$this->assertSame( get_class( $expected ), get_class( $e ) );
+			$this->assertSame( $expected->getMessage(), $e->getMessage() );
+			$this->assertSame( $expected->getCode(), $e->getCode() );
 
-		$this->newParsoidHandler()->tryToCreatePageConfig( $attribs, $wikitext, $html2WtMode );
+			if ( $expected instanceof LocalizedHttpException ) {
+				$this->assertEquals( $expected->getMessageValue(), $e->getMessageValue() );
+				$this->assertSame( $expected->getErrorData(), $e->getErrorData() );
+			}
+		}
 	}
 
 	public static function provideRoundTripNoSelser() {
@@ -1720,9 +1757,9 @@ class ParsoidHandlerTest extends MediaWikiIntegrationTestCase {
 		$this->assertSame( $wikitext, $actual );
 	}
 
-	public function provideLanguageConversion() {
-		$en = $this->createLanguageMock( 'en' );
-		$enPigLatin = $this->createLanguageMock( 'en-x-piglatin' );
+	public static function provideLanguageConversion() {
+		$en = new Bcp47CodeValue( 'en' );
+		$enPigLatin = new Bcp47CodeValue( 'en-x-piglatin' );
 		$profileVersion = Parsoid::AVAILABLE_VERSIONS[0];
 		$htmlProfileUri = 'https://www.mediawiki.org/wiki/Specs/HTML/' . $profileVersion;
 		$htmlContentType = "text/html; charset=utf-8; profile=\"$htmlProfileUri\"";
@@ -1764,7 +1801,7 @@ class ParsoidHandlerTest extends MediaWikiIntegrationTestCase {
 			'>esttay anguagelay onversioncay<',
 			[
 				'content-type' => $htmlContentType,
-				'content-language' => $enPigLatin->toBcp47Code(),
+				'content-language' => 'en-x-piglatin',
 			]
 		];
 	}
@@ -2254,28 +2291,5 @@ class ParsoidHandlerTest extends MediaWikiIntegrationTestCase {
 
 	// TODO: test wt2html failure modes
 	// TODO: test redlinks
-
-	public function createLanguageMock( string $code ) {
-		// Ensure that we always return the same object for a given code.
-		static $seen = [];
-		if ( !isset( $seen[$code] ) ) {
-			$langMock = $this->createMock( Language::class );
-			$langMock
-				->method( 'getCode' )
-				->willReturn( $code );
-			$bcp47 = LanguageCode::bcp47( $code );
-			$langMock
-				->method( 'getHtmlCode' )
-				->willReturn( $bcp47 );
-			$langMock
-				->method( 'toBcp47Code' )
-				->willReturn( $bcp47 );
-			$langMock
-				->method( 'getDir' )
-				->willReturn( 'ltr' );
-			$seen[$code] = $langMock;
-		}
-		return $seen[$code];
-	}
 
 }

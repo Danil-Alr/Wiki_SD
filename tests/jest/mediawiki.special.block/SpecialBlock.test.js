@@ -23,6 +23,8 @@ const withSubmission = ( config, postResponse ) => {
 describe( 'SpecialBlock', () => {
 	let wrapper;
 
+	afterEach( () => wrapper.unmount() );
+
 	it( 'should show no banner and no "Add block" button on page load', async () => {
 		wrapper = getSpecialBlock();
 		expect( wrapper.find( '.cdx-message__content' ).exists() ).toBeFalsy();
@@ -31,10 +33,12 @@ describe( 'SpecialBlock', () => {
 
 	it( 'should show no banner and block form after selecting a valid target with no active blocks', async () => {
 		wrapper = getSpecialBlock( { blockId: null } );
+		const hookSpy = jest.spyOn( mw.hook(), 'fire' );
 		expect( wrapper.find( '.cdx-message__content' ).exists() ).toBeFalsy();
 		await wrapper.find( '[name=wpTarget]' ).setValue( 'ExampleUser' );
 		await wrapper.find( '[name=wpTarget]' ).trigger( 'change' );
 		expect( wrapper.find( '.mw-block__block-form' ).exists() ).toBeTruthy();
+		expect( hookSpy ).toHaveBeenCalledWith( true, 'ExampleUser', null );
 		expect( wrapper.find( '.mw-block-submit' ).text() ).toStrictEqual( 'block-submit' );
 	} );
 
@@ -93,6 +97,7 @@ describe( 'SpecialBlock', () => {
 		await wrapper.find( '[name=wpExpiry-other]' ).setValue( '2999-01-23T12:34' );
 		await wrapper.find( '[name=wpReason-other]' ).setValue( 'This is a test' );
 		const spy = jest.spyOn( mw.Api.prototype, 'postWithEditToken' );
+		const hookSpy = jest.spyOn( mw.hook(), 'fire' );
 		const submitButton = wrapper.find( '.mw-block-submit' );
 		expect( wrapper.find( '.mw-block-success' ).exists() ).toBeFalsy();
 		await submitButton.trigger( 'click' );
@@ -113,6 +118,8 @@ describe( 'SpecialBlock', () => {
 			formatversion: 2
 		} );
 		expect( wrapper.find( '.mw-block-success' ).exists() ).toBeTruthy();
+		// {user:'ExampleUser'} is from the fixtures in SpecialBlock.setup.js
+		expect( hookSpy ).toHaveBeenCalledWith( { user: 'ExampleUser' } );
 	} );
 
 	it( 'should add an error state to invalid fields on submission', async () => {
@@ -196,19 +203,18 @@ describe( 'SpecialBlock', () => {
 		await flushPromises();
 		expect( wrapper.find( '[data-test=edit-block-button]' ).exists() ).toBeTruthy();
 		await wrapper.find( '[data-test=edit-block-button]' ).trigger( 'click' );
+		expect( store.reason ).toStrictEqual( 'Spamming talk page' );
 		expect( wrapper.find( '.mw-block__block-form' ).exists() ).toBeTruthy();
 		expect( wrapper.find( '.mw-block__block-form h2' ).text() ).toStrictEqual( 'block-update' );
 		expect( wrapper.find( '.mw-block-submit' ).text() ).toStrictEqual( 'block-submit' );
-		wrapper.find( '[name=wpReason-other]' ).setValue( 'This is a test' );
-		expect( store.reason ).toStrictEqual( 'other' );
-		expect( store.reasonOther ).toStrictEqual( 'This is a test' );
+		await wrapper.find( '[name=wpReason-other]' ).setValue( 'This is a test' );
+		expect( store.reason ).toStrictEqual( 'This is a test' );
 		await wrapper.find( '.mw-block-submit' ).trigger( 'click' );
 		await flushPromises();
 		expect( wrapper.find( '.mw-block-success' ).exists() ).toBeTruthy();
 		expect( wrapper.find( '.mw-block-success .cdx-message__content' ).text() ).toContain( 'block-updated-message' );
 		expect( wrapper.find( '.mw-block__block-form' ).exists() ).toBeFalsy();
-		expect( store.reason ).toStrictEqual( 'other' );
-		expect( store.reasonOther ).toStrictEqual( '' );
+		expect( store.reason ).toStrictEqual( '' );
 		expect( store.blockId ).toStrictEqual( null );
 	} );
 
@@ -285,21 +291,23 @@ describe( 'SpecialBlock', () => {
 		expect( wrapper.find( '.mw-block__block-form' ).exists() ).toBeTruthy();
 		expect( wrapper.find( '.mw-block__block-form h2' ).text() ).toStrictEqual( 'block-update' );
 		expect( wrapper.find( '.mw-block-submit' ).text() ).toStrictEqual( 'block-submit' );
-		wrapper.find( '[name=wpReason-other]' ).setValue( 'This is a test' );
-		expect( store.reason ).toStrictEqual( 'other' );
-		expect( store.reasonOther ).toStrictEqual( 'This is a test' );
+		expect( store.formDirty ).toBeFalsy();
+		await wrapper.find( '[name=wpReason-other]' ).setValue( 'This is a test' );
+		expect( store.reason ).toStrictEqual( 'This is a test' );
+		expect( store.formDirty ).toBeTruthy();
 		// Submit.
 		await wrapper.find( '.mw-block-submit' ).trigger( 'click' );
 		await flushPromises();
 		expect( wrapper.find( '.mw-block-success' ).exists() ).toBeTruthy();
 		expect( wrapper.find( '.mw-block__block-form' ).exists() ).toBeFalsy();
-		expect( store.reason ).toStrictEqual( 'other' );
-		expect( store.reasonOther ).toStrictEqual( '' );
+		expect( store.reason ).toStrictEqual( '' );
+		expect( store.blockId ).toBeNull();
 		// Add a new block.
 		await wrapper.find( '.mw-block__create-button' ).trigger( 'click' );
 		expect( wrapper.find( '.mw-block__block-form' ).exists() ).toBeTruthy();
 		expect( store.blockId ).toBeNull();
-		expect( store.reason ).toStrictEqual( 'other' );
+		expect( store.reason ).toStrictEqual( '' );
+		expect( store.formDirty ).toBeFalsy();
 		expect( wrapper.find( '[name=wpReason-other]' ).element.value ).toStrictEqual( '' );
 	} );
 
@@ -308,18 +316,21 @@ describe( 'SpecialBlock', () => {
 			{ blockTargetUser: 'ActiveBlockedUser', blockTargetExists: true },
 			{ block: { user: 'ActiveBlockedUser' } }
 		);
+		const hookSpy = jest.spyOn( mw.hook(), 'fire' );
 		const store = useBlockStore();
 		await flushPromises();
 		// Edit a block.
 		await wrapper.find( '[data-test=edit-block-button]' ).trigger( 'click' );
-		wrapper.find( '[name=wpReason-other]' ).setValue( 'This is a test' );
-		expect( store.reasonOther ).toStrictEqual( 'This is a test' );
+		expect( hookSpy ).toHaveBeenCalledWith( true, 'ActiveBlockedUser', 1110 );
+		await wrapper.find( '[name=wpReason-other]' ).setValue( 'This is a test' );
+		expect( store.reason ).toStrictEqual( 'This is a test' );
 		// Cancel the edit.
 		await wrapper.find( '[data-test="cancel-edit-button"]' ).trigger( 'click' );
+		expect( hookSpy ).toHaveBeenCalledWith( false, 'ActiveBlockedUser', null );
 		// Create a new block.
 		await wrapper.find( '.mw-block__create-button' ).trigger( 'click' );
 		expect( store.blockId ).toBeNull();
-		expect( store.reasonOther ).toStrictEqual( '' );
+		expect( store.reason ).toStrictEqual( '' );
 		expect( wrapper.find( '[name=wpReason-other]' ).element.value ).toStrictEqual( '' );
 	} );
 
@@ -334,6 +345,20 @@ describe( 'SpecialBlock', () => {
 		expect( wrapper.find( '.mw-block-log__type-active' ).exists() ).toBeFalsy();
 		expect( wrapper.find( '.mw-block-log__type-recent' ).exists() ).toBeFalsy();
 		expect( wrapper.find( '.mw-block__create-button' ).exists() ).toBeFalsy();
+	} );
+
+	it( 'should show an error when given an invalid block ID', async () => {
+		wrapper = getSpecialBlock( { blockId: 12345 }, [ {
+			params: {
+				list: 'blocks',
+				bkids: 12345
+			},
+			response: { blocks: [] }
+		} ] );
+		const store = useBlockStore();
+		await flushPromises();
+		expect( wrapper.find( '.cdx-message--error' ).text() ).toBe( 'block-invalid-id' );
+		expect( store.blockId ).toBeNull();
 	} );
 
 	it( 'should show no block logs and no "Add block" button when the target is changed from a valid to an invalid target', async () => {
@@ -393,7 +418,11 @@ describe( 'SpecialBlock', () => {
 			.toStrictEqual( 'block-user-no-active-range-blocks' );
 	} );
 
-	afterEach( () => {
-		wrapper.unmount();
+	it( 'should show "add block" form for an IP with range blocks and no active blocks', async () => {
+		mw.util.isIPAddress = jest.fn().mockReturnValue( true );
+		wrapper = getSpecialBlock( { blockTargetUser: '192.1.1.1', blockTargetExists: true, blockEnableMultblocks: false } );
+		await flushPromises();
+		// since there are no blocks, the form is instanly available and add-block is not visible
+		expect( wrapper.find( '.mw-block-submit' ).exists() ).toBeTruthy();
 	} );
 } );

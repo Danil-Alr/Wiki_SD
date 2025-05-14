@@ -24,7 +24,6 @@ namespace MediaWiki\Output;
 
 use CSSJanus;
 use Exception;
-use HtmlArmor;
 use InvalidArgumentException;
 use MediaWiki\Cache\LinkCache;
 use MediaWiki\Config\Config;
@@ -62,6 +61,7 @@ use MediaWiki\Request\WebRequest;
 use MediaWiki\ResourceLoader as RL;
 use MediaWiki\ResourceLoader\ResourceLoader;
 use MediaWiki\Session\SessionManager;
+use MediaWiki\Skin\QuickTemplate;
 use MediaWiki\Skin\Skin;
 use MediaWiki\SpecialPage\SpecialPage;
 use MediaWiki\Title\Title;
@@ -72,6 +72,7 @@ use OOUI\Theme;
 use RuntimeException;
 use Wikimedia\Assert\Assert;
 use Wikimedia\Bcp47Code\Bcp47Code;
+use Wikimedia\HtmlArmor\HtmlArmor;
 use Wikimedia\Message\MessageParam;
 use Wikimedia\Message\MessageSpecifier;
 use Wikimedia\Parsoid\Core\LinkTarget as ParsoidLinkTarget;
@@ -2651,7 +2652,7 @@ class OutputPage extends ContextSource {
 	/**
 	 * Add the output of a QuickTemplate to the output buffer
 	 *
-	 * @param \QuickTemplate &$template
+	 * @param QuickTemplate &$template
 	 */
 	public function addTemplate( &$template ) {
 		$this->addHTML( $template->getHTML() );
@@ -3525,6 +3526,7 @@ class OutputPage extends ContextSource {
 		if ( $status->isGood() ) {
 			return '';
 		}
+
 		return $this->formatPermissionInternal(
 			array_map( fn ( $msg ) => $this->msg( $msg ), $status->getMessages() ),
 			$action
@@ -3532,28 +3534,8 @@ class OutputPage extends ContextSource {
 	}
 
 	/**
-	 * Format a list of error messages
-	 *
-	 * @deprecated since 1.36. Use ::formatPermissionStatus instead
-	 * @param array $errors Array of arrays returned by PermissionManager::getPermissionErrors
-	 * @param-taint $errors none
-	 * @phan-param non-empty-array[] $errors
-	 * @param string|null $action Action that was denied or null if unknown
-	 * @return string The wikitext error-messages, formatted into a list.
-	 * @return-taint tainted
-	 */
-	public function formatPermissionsErrorMessage( array $errors, $action = null ) {
-		wfDeprecated( __METHOD__, '1.36' );
-		return $this->formatPermissionInternal(
-			// @phan-suppress-next-line PhanParamTooFewUnpack Elements of $errors already annotated as non-empty
-			array_map( fn ( $err ) => $this->msg( ...$err ), $errors ),
-			$action
-		);
-	}
-
-	/**
-	 * Helper for formatPermissionStatus() and deprecated formatPermissionsErrorMessage(),
-	 * should be inlined when the deprecated method is removed.
+	 * Helper for formatPermissionStatus() that was meant to be inlined when formatPermissionsErrorMessage()
+	 * was removed, but is also being called from showPermissionInternal() too.
 	 *
 	 * @param Message[] $messages
 	 * @param-taint $messages none
@@ -3976,9 +3958,9 @@ class OutputPage extends ContextSource {
 		}
 
 		$bodyAttrs = [];
-		// While the implode() is not strictly needed, it's used for backwards compatibility
+		// While the expandClassList() is not strictly needed, it's used for backwards compatibility
 		// (this used to be built as a string and hooks likely still expect that).
-		$bodyAttrs['class'] = implode( ' ', $bodyClasses );
+		$bodyAttrs['class'] = Html::expandClassList( $bodyClasses );
 
 		$this->getHookRunner()->onOutputPageBodyAttributes( $this, $sk, $bodyAttrs );
 

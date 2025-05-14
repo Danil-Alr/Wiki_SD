@@ -53,10 +53,10 @@ use MediaWiki\User\UserEditTracker;
 use MediaWiki\User\UserFactory;
 use MediaWiki\User\UserIdentity;
 use MediaWiki\Watchlist\WatchedItemStoreInterface;
-use StringUtils;
 use Wikimedia\Rdbms\IConnectionProvider;
 use Wikimedia\Rdbms\IDatabase;
 use Wikimedia\Rdbms\IDBAccessObject;
+use Wikimedia\StringUtils\StringUtils;
 
 /**
  * Handles the backend logic of moving a page from one title
@@ -744,7 +744,7 @@ class MovePage {
 		// Emit an event describing the move
 		$this->eventDispatcher->dispatch( new PageMovedEvent(
 			$pageStateBeforeMove,
-			$this->newTitle->toPageRecord(),
+			$this->newTitle->toPageRecord( IDBAccessObject::READ_LATEST ),
 			$user
 		), $this->dbProvider );
 

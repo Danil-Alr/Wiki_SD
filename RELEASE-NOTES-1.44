@@ -132,6 +132,11 @@ For notes on 1.43.x and older releases, see HISTORY.
 * The UserLinkRenderer service was added.
 * The AuthPreserveQueryParams hook has a new option, $options['request'],
   to avoid having to rely on the global context.
+* You can use LoggerFactory::getContext() to add extra context to all PSR-3
+  log events.
+* New helper methods Html::addClass() and Html::expandClassList().
+* The new FeatureShutdown service can be used to provide controlled outages for
+  deprecated interfaces.
 * …
 
 === External library changes in 1.44 ===
@@ -143,31 +148,46 @@ For notes on 1.43.x and older releases, see HISTORY.
 ===== New development-only external libraries =====
 
 * Updated QUnit from 2.20.0 to 2.24.1.
+* Updated Sinon from 1.17.1 to 18.0.1.
 
 ==== Changed external libraries ====
 
 * Updated codex, codex-design-tokens and codex-icons
-  from v1.14.0 to v1.22.0.
+  from v1.14.0 to v1.23.0.
+* Updated guzzlehttp/guzzle from 7.9.2 to 7.9.3.
 * Updated mck89/peast from 1.16.3 to 1.17.0.
 * Updated moment from v2.25.2 to v2.30.1.
 * Updated OOUI from v0.51.2 to v0.51.7.
+* Updated symfony/polyfill-php80 from 1.31.0 to 1.32.0.
+* Updated symfony/polyfill-php81 from 1.31.0 to 1.32.0.
+* Updated symfony/polyfill-php82 from 1.31.0 to 1.32.0.
+* Updated symfony/polyfill-php83 from 1.31.0 to 1.32.0.
 * Updated vue from 3.4.27 to 3.5.13.
 * Updated wikimedia/bcp-47-code from 2.0.0 to 2.0.1.
+* Updated wikimedia/common-passwords from 0.5.0 to 0.5.1.
 * Updated wikimedia/less.php from 5.1.2 to 5.2.1.
 * Updated wikimedia/minify from 2.8.0 to 2.9.0.
+* Updated wikimedia/normalized-exception from 2.0.0 to 2.1.1.
+* Updated wikimedia/parsoid from 0.20.0 to 0.21.0.
 * Updated wikimedia/php-session-serializer from 3.0.0 to 3.0.1.
 * Updated wikimedia/relpath from 4.0.1 to 4.0.2.
+* Updated wikimedia/remex-html from 4.1.1 to 4.1.2.
+* Updated wikimedia/request-timeout from 2.0.0 to 2.0.2.
 * Updated wikimedia/shellbox from 4.1.1 to 4.2.0.
 * Updated wikimedia/timestamp from 4.1.1 to 4.2.0.
-* …
 
 ===== Changed development-only external libraries =====
+
+* Updated api-testing to 1.6.0 to 1.7.1.
+* Updated doctrine/dbal from 3.8.4 to 3.9.4.
+* Updated doctrine/sql-formatter from 1.1.3 to 1.3.0.
+* Updated eslint-config-wikimedia from 0.28.2 to 0.29.1.
 * Updated mediawiki/mediawiki-phan-config from 0.14.0 to 0.15.0.
 * Updated nikic/php-parser from ^4.10.2 to ^5.3.1.
 * Updated phpunit/phpunit from 9.6.19 to 9.6.21.
+* Updated seld/jsonlint from 1.10.2 to 1.11.0.
 * Updated stylelint-config-wikimedia from v0.17.2 to v0.18.0.
 * Updated wikimedia/langconv from 0.4.2 to 0.5.0.
-* Updated eslint-config-wikimedia from 0.28.2 to 0.29.1.
 * …
 
 ==== Removed external libraries ====
@@ -207,6 +227,7 @@ because of Phabricator reports.
 * (T384234) Added language support for Wali (wlx).
 * (T384245) Added language support for Lampung Api (ljp).
 * (T389916) Added language support for Buginese (bug-bugi).
+* (T393086) Added language support for Ho (Latin script) (hoc-latn).
 
 * …
 
@@ -232,6 +253,7 @@ because of Phabricator reports.
   may require updates in any classes implementing these interfaces, including
   external extensions. Extensions such as Translate, Flow, and ReadingLists
   require compatibility patches to support these changes.
+* EditPage::internalAttemptSave(), deprecated since 1.43, was removed.
 * IDatabase::LB_TRX_ROUND_ID was removed and IDatabase::LB_READ_ONLY_REASON
   was marked as an internal constant.
 * IDatabase::onAtomicSectionCancel() has been removed without deprecation
@@ -257,6 +279,7 @@ because of Phabricator reports.
   No callers outside that library are known.
 * The constant UploadBase::OVERWRITE_EXISTING_FILE has been removed, it has
   been unused as a status code by UploadBase for more than 14 years.
+* The constant UploadBase::HOOK_ABORTED has been removed, unused since 1.34.
 * MediaWikiIntegrationTestCase::$tablesUsed, deprecated since 1.41, has been
   removed. The framework detects changed tables since 1.41 automatically.
 * MediaWiki\Language\Language class no longer supports manually calling the
@@ -347,8 +370,8 @@ because of Phabricator reports.
 * Block::TYPE_ID has been removed. Use DatabaseBlockStore::newFromID().
 * UserOptionsManager methods resetOptions, listOptionKinds and getOptionKinds,
   deprecated since 1.43, have been removed.
-* WANObjectCache::clearLastError(), soft-deprecated in 1.38 and hard-deprecated
-  in 1.43, has been removed.
+* WANObjectCache::clearLastError(), deprecated in 1.38 & emitting notices since
+  1.43, has been removed.
 * The WANObjectCache 'stats' option for StatsdDataFactory, deprecated in 1.43,
   is no longer supported. Use StatsFactory instead.
 * When fetching a message containing {{PAGENAME}} or similar with
@@ -368,9 +391,14 @@ because of Phabricator reports.
   warnings in 1.38, have been removed:
    - OutputPage::$mNoGallery
    - OutputPage::$mRevisionTimestamp
-* Removed $timestamp, $summary, $minorEdit, $oldid and $pageStatus params from
-  EmailNotification::notifyOnPageChange(). Now this method takes RecentChange
-  instead.
+* OutputPage::formatPermissionsErrorMessage(), deprecated since 1.36, has been
+  removed. Use formatPermissionStatus() instead.
+* BaseTemplate::getFooterIcons(), deprecated since 1.35, has been removed.
+* The method signatures of EmailNotification::notifyOnPageChange()
+  and actuallyNotifyOnPageChange() have changed. These method are now
+  marked as @internal and must not be used by extensions.
+* The modules codex-search-styles and @wikimedia/codex-search have been
+  removed. Please use MediaWiki\\ResourceLoader\\CodexModule instead.
 * …
 
 === Deprecations in 1.44 ===
@@ -382,6 +410,8 @@ because of Phabricator reports.
   listExplicitlyDefinedTags(), listSoftwareActivatedTags(),
   listSoftwareDefinedTags(), makeTagSummarySubquery(), modifyDisplayQuery(),
   purgeTagCacheAll(), tagUsageStatistics(), and updateTags().
+* EditPage::$textbox2 has been deprecated (once again).
+* EditPage::$action, deprecated since 1.38, now emits deprecation warnings.
 * (T166010) All PHP code in MediaWiki is slowly being moved to be in a class
   namespace as appropriate, so that we can use PSR-4 auto-loading, which will
   speed up general code loading of MediaWiki. The old global namespace class
@@ -420,6 +450,8 @@ because of Phabricator reports.
     - ChangeTagsLogList
     - ChangeTagsRevisionItem
     - ChangeTagsRevisionList
+  - MediaWiki\Cache:
+    - HTMLFileCache
   - MediaWiki\Exception:
     - BadRequestError
     - BadTitleError
@@ -467,6 +499,8 @@ because of Phabricator reports.
       - MetadataStorageHelper
       - OldLocalFile
       - UnregisteredLocalFile
+  - MediaWiki\Interwiki:
+    - Interwiki
   - MediaWiki\JobQueue:
     - GenericParameterJob
     - IJobSpecification
@@ -570,6 +604,21 @@ because of Phabricator reports.
     - SkinFallback
     - SkinMustache
     - SkinTemplate
+  - Wikimedia\ArrayUtils:
+    - ArrayUtils
+  - Wikimedia\HashRing:
+    - HashRing
+  - Wikimedia\HtmlArmor:
+    - HtmlArmor
+  - Wikimedia\Http:
+    - HttpStatus
+  - Wikimedia\MapCacheLRU:
+    - MapCacheLRU
+  - Wikimedia\StringUtils:
+    - ExplodeIterator
+    - StringUtils
+  - Wikimedia\Timing:
+    - Timing
 * WikiPage::doEditUpdates(), deprecated since 1.32, is now emitting warnings.
   Use DerivedPageDataUpdater::doUpdates() instead.
 * IDatabase::setTransactionListener() is now deprecated without replacement.
@@ -590,19 +639,22 @@ because of Phabricator reports.
   RL\Context::encodeJson, if available. If not, use FormatJson::encode.
 * wfAssembleUrl(), wfMatchesDomainList(), and wfUrlProtocolsWithoutProtRel(),
   all deprecated in 1.39, now emit warnings.
+* MediaWikiServices::getPerDbNameStatsdDataFactory() is now deprecated. Use
+  StatsFactory instead with wiki ID via WikiMap::getCurrentDomainId() as label.
 * BlockManager::getUserBlock(), deprecated since 1.42, now emits warnings.
 * DatabaseBlock methods newFromRow(), delete(), insert(), update(),
   doAutoblock(), isExemptedFromAutoblocks(), doAutoblock(), updateTimestamp(),
   newFromTarget(), newListFromTarget() and getBlocksForIPList() are now
   deprecated and emit deprecation warnings. Use the corresponding method in
   DatabaseBlockStore, except for getBlocksForIPList() which is in BlockManager.
+* User::whoIs() and ::whoIsReal(), deprecated since 1.43, now emit warnings.
 * The parameter $default in WebRequest::getRawVal(), deprecated since 1.43,
   is now emitting warnings.
 * The link to "Special pages" has moved from the toolbox to MediaWiki:Sidebar
   since toolbox relates to tools associated with the current page, not the
   site. To support the transition, for interface admins who have already
   customized MediaWiki:Sidebar, the special pages link will be automatically
-  added. This will be hard deprecated in the next MediaWiki release. More
+  added. This will emit deprecation warning. More
   information is available at T333211. To avoid future breakage, see the
   guidance in T385346.
 * Various deprecated static methods of Xml, deprecated in earlier versions, are
@@ -613,12 +665,19 @@ because of Phabricator reports.
    - Xml::password() – use Html::input() instead
    - Xml::buildTable() – use OOUI or Codex widgets instead
    - Xml::buildTableRow() – use OOUI or Codex widgets instead
+   - Xml::textarea() – use Html::element() instead
+   - Xml::submitButton() – use Html::submitButton() instead
+   - Xml::check() – use Html::check() instead
+   - Xml::radio() – use Html::radio() instead
+   - Xml::input() – use Html::input() instead
 * BlockUtils and BlockUtilsFactory is now deprecated. Use BlockTargetFactory
   and CrossWikiBlockTargetFactory.
 * RenameuserSQL::rename has been deprecated and should be replaced with
   RenameuserSQL::renameUser, which returns a Status instead of boolean.
 * LocalFile::getQueryInfo() and OldLocalFile::getQueryInfo(), deprecated
   since 1.41, are now emitting warnings.
+* RevisionStore::newNullRevision is deprecated, use
+  PageUpdater::saveDummyRevision() instead.
 * Linker::userLink() has been deprecated in favor of the UserLinkRenderer
   service. (T308000)
 * OutputPage::getNoGallery(), previously marked @internal, has been deprecated
@@ -640,6 +699,8 @@ because of Phabricator reports.
   are now deprecated. Use UploadBase::authorizeUpload() instead.
 * PermissionStatus::toLegacyErrorArray(), deprecated since 1.43, is now
   emitting warnings.
+* MediaWikiIntegrationtestCase::removeTemporaryHook() deprecated since 1.36,
+  now emit deprecation warnings.
 * MessageCache::parse, ::parseWithPostProcessing and ::transform() are now
   deprecated. Use MessageParser.
 * User::getGlobalBlock(), deprecated since 1.40, now emits deprecation
@@ -652,6 +713,36 @@ because of Phabricator reports.
   internal implementation details not intended for public use.
 * MediaWikiTitleCodec::getTitleInvalidRegex() is now deprecated. Use the same
   method in TitleParser.
+* The `moment` library is deprecated and consumers should explore using
+  alternatives. More information and support will be provided at
+  https://phabricator.wikimedia.org/T146798
+* Passing the wrong type or null as the various parameters to the public methods
+  of SiteConfiguration is now deprecated:
+  - SiteConfiguration::get
+    - Only pass a string to $settingName or $wiki
+    - Only pass null or a string to $site
+    - Only pass an array to $params or $wikiTags
+  - SiteConfiguration::getAll
+    - Only pass a string to $wiki
+    - Only pass null or a string to $site
+    - Only pass an array to $params or $wikiTags
+  - SiteConfiguration::getBool
+    - Only pass a string to $setting or $wiki
+    - Only pass null or a string to $site
+    - Only pass an array to $wikiTags
+  - SiteConfiguration::extractGlobalSetting
+    - Only pass a string to $setting or $wiki
+    - Only pass an array to $params
+  - SiteConfiguration::extractAllGlobals
+    - Only pass a string to $wiki
+    - Only pass null or a string to $site
+    - Only pass an array to $params or $wikiTags
+  - SiteConfiguration::siteFromDB
+    - Only pass a string to $wiki
+* UserMailer::sanitizeHeaderValue emits deprecation warnings. This function
+  is no longer used within core/extensions. No replacement is provided.
+* (T387995) Deprecated AbortTalkPageEmailNotification hook. Use the Notification
+  Middleware to filter our Talk Page notifications
 * …
 
 === Other changes in 1.44 ===

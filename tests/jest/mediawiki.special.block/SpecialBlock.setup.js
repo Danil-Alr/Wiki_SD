@@ -59,15 +59,16 @@ function mockMwConfigGet( config = {} ) {
 			2: 'User',
 			3: 'User talk'
 		},
+		wgPageName: 'Special:Block',
 		wgUserLanguage: 'en',
 		blockAlreadyBlocked: false,
 		blockTargetUser: null,
-		blockTargetUserInput: null,
 		blockTargetExists: null,
 		blockAdditionalDetailsPreset: [ 'wpAutoBlock' ],
 		blockAllowsEmailBan: true,
 		blockAllowsUTEdit: true,
 		blockAutoblockExpiry: '1 day',
+		blockCanEditInterface: false,
 		blockDetailsPreset: [ 'wpCreateAccount' ],
 		blockExpiryDefault: '',
 		blockExpiryPreset: null,
@@ -79,10 +80,27 @@ function mockMwConfigGet( config = {} ) {
 		blockNamespaceRestrictions: '',
 		blockPageRestrictions: '',
 		blockPreErrors: [],
+		blockReasonMaxLength: 500,
 		blockReasonOptions: [
-			{ label: 'block-reason-1', value: 'block-reason-1' },
-			{ label: 'block-reason-2', value: 'block-reason-2' }
+			{ label: 'Other', value: 'other' },
+			{
+				label: 'Common block reasons',
+				items: [
+					{ label: 'Vandalism', value: 'Vandalism' },
+					{ label: 'Spam', value: 'Spam' },
+					{ label: 'Disruptive editing', value: 'Disruptive editing' }
+				]
+			},
+			{
+				label: 'Templated reasons',
+				items: [
+					{ label: '{{anonblock}}', value: '{{anonblock}}' },
+					{ label: '{{schoolblock}}', value: '{{schoolblock}}' },
+					{ label: '{{sockpuppet}}', value: '{{sockpuppet}}' }
+				]
+			}
 		],
+		blockReasonPreset: '',
 		blockSuccessMsg: '[[Special:Contributions/ExampleUser|ExampleUser]] has been blocked.',
 		blockTypePreset: 'sitewide'
 	}, config );
@@ -603,7 +621,43 @@ function mockMwApiGet( additionalMocks = [] ) {
 				}
 			}
 		},
-		// IP with range blocks (T389987)
+		// IP with range blocks
+		{
+			params: {
+				list: 'logevents|blocks',
+				letype: 'block',
+				letitle: 'User:192.1.1.1'
+			},
+			response: {
+				query: {
+					blocks: [
+						{
+							id: 2001,
+							user: '192.1.1.0/18',
+							by: 'Admin',
+							timestamp: '2025-03-31T23:24:54Z',
+							expiry: '2025-10-01T23:24:54Z',
+							'duration-l10n': '6 months',
+							reason: 'Spamming links to external sites',
+							parsedreason: 'Spamming links to external sites',
+							rangestart: '1.2.0.0',
+							rangeend: '1.2.63.255',
+							automatic: false,
+							anononly: true,
+							nocreate: true,
+							autoblock: false,
+							noemail: false,
+							hidden: false,
+							allowusertalk: true,
+							partial: false,
+							restrictions: []
+						}
+					],
+					logevents: []
+				}
+			}
+		},
+		// Blocked IP with range blocks (T389987)
 		{
 			params: {
 				list: 'logevents|blocks',
@@ -725,6 +779,19 @@ function mockMwApiGet( additionalMocks = [] ) {
 				query: {
 					allusers: [
 						{ name: 'ExampleUser' },
+						{ name: 'ExampleUser2' }
+					]
+				}
+			}
+		},
+		{
+			params: {
+				list: 'allusers',
+				auprefix: 'ExampleUser2'
+			},
+			response: {
+				query: {
+					allusers: [
 						{ name: 'ExampleUser2' }
 					]
 				}

@@ -47,7 +47,6 @@ use MediaWiki\Status\Status;
 use MediaWiki\Title\NamespaceInfo;
 use MediaWiki\Title\Title;
 use MediaWiki\User\Options\UserOptionsManager;
-use MediaWiki\Xml\Xml;
 use SearchEngine;
 use SearchEngineConfig;
 use SearchEngineFactory;
@@ -486,7 +485,7 @@ class SpecialSearch extends SpecialPage {
 		if ( $this->offset > 0 ) {
 			$classNames[] = 'mw-searchresults-has-offset';
 		}
-		$out->addHTML( '<div class="' . implode( ' ', $classNames ) . '">' );
+		$out->addHTML( Html::openElement( 'div', [ 'class' => $classNames ] ) );
 
 		$out->addHTML( '<div class="mw-search-results-info">' );
 
@@ -655,7 +654,7 @@ class SpecialSearch extends SpecialPage {
 			];
 
 			$subtitle .= ' (';
-			$subtitle .= Xml::element(
+			$subtitle .= Html::element(
 				'a',
 				[
 					'href' => $this->getPageTitle()->getLocalURL( $params ),

@@ -26,7 +26,6 @@
 namespace MediaWiki\Logging;
 
 use InvalidArgumentException;
-use MapCacheLRU;
 use MediaWiki\Block\DatabaseBlockStore;
 use MediaWiki\ChangeTags\ChangeTags;
 use MediaWiki\Context\ContextSource;
@@ -54,9 +53,9 @@ use MediaWiki\Status\Status;
 use MediaWiki\Title\NamespaceInfo;
 use MediaWiki\Title\Title;
 use MediaWiki\User\UserIdentity;
-use MediaWiki\Xml\Xml;
 use MessageLocalizer;
 use stdClass;
+use Wikimedia\MapCacheLRU\MapCacheLRU;
 
 class LogEventsList extends ContextSource {
 	public const NO_ACTION_LINK = 1;
@@ -417,11 +416,7 @@ class LogEventsList extends ContextSource {
 
 		// If change tag editing is available to this user, return the checkbox
 		if ( $this->flags & self::USE_CHECKBOXES && $this->showTagEditUI ) {
-			return Xml::check(
-				'showhiderevisions',
-				false,
-				[ 'name' => 'ids[' . $row->log_id . ']' ]
-			);
+			return Html::check( 'ids[' . $row->log_id . ']', false );
 		}
 
 		// no one can hide items from the suppress log.
@@ -443,13 +438,9 @@ class LogEventsList extends ContextSource {
 				if ( $canHide && $this->flags & self::USE_CHECKBOXES && !$canViewThisSuppressedEntry ) {
 					// If event was hidden from sysops
 					if ( !self::userCan( $row, LogPage::DELETED_RESTRICTED, $authority ) ) {
-						$del = Xml::check( 'deleterevisions', false, [ 'disabled' => 'disabled' ] );
+						$del = Html::check( 'deleterevisions', false, [ 'disabled' => 'disabled' ] );
 					} else {
-						$del = Xml::check(
-							'showhiderevisions',
-							false,
-							[ 'name' => 'ids[' . $row->log_id . ']' ]
-						);
+						$del = Html::check( 'ids[' . $row->log_id . ']', false );
 					}
 				} else {
 					// If event was hidden from sysops

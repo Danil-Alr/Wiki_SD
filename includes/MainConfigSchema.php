@@ -3217,17 +3217,39 @@ class MainConfigSchema {
 	}
 
 	/**
-	 * Other wikis on this site, can be administered from a single developer account.
+	 * List of all wiki IDs that reside on the current wiki farm.
 	 *
-	 * List of wiki DB domain IDs; the format of each ID consist of 1-3 hyphen
-	 *   delimited alphanumeric components (each with no hyphens nor spaces) of any of the forms:
-	 *   - "<DB NAME>-<DB SCHEMA>-<TABLE PREFIX>"
-	 *   - "<DB NAME>-<TABLE PREFIX>"
-	 *   - "<DB NAME>"
+	 * The wikis listed here must meet the following requirements in order to
+	 * be be considered part of the same wiki farm:
+	 *
+	 * - reachable for cross-wiki database queries, via \Wikimedia\Rdbms\IConnectionProvider,
+	 *   as configured by $wgLBFactoryConf
+	 * - share the same $wgMainCacheType backend (e.g. the same Memcached cluster),
+	 *   so that cache updates and purges via BagOStuff::makeGlobalKey and
+	 *   WANObjectCache work correctly.
+	 *
+	 * Examples of cross-wiki features enabled through this setting:
+	 *
+	 * - SpecialUserRights, to assign a local user group from a central wiki.
+	 * - JobQueueGroup::push, to queue a job for another wiki
+	 *   (e.g. GlobalUsage, MassMessage, and Wikibase extensions).
+	 * - RenameUser (when using $wgSharedDB), to globally apply the rename to revisions
+	 *   logging tables on all wikis.
+	 *
+	 * Each wiki ID must consist of 1-3 hyphen-delimited alphanumeric components (each with no
+	 * hyphens nor spaces) of any of the forms:
+	 *
+	 * - "<DB NAME>"
+	 * - "<DB NAME>-<TABLE PREFIX>"
+	 * - "<DB NAME>-<DB SCHEMA>-<TABLE PREFIX>"
+	 *
 	 * If hyphens appear in any of the components, then the domain ID parsing may not work
-	 * in all cases and site functionality might be affected. If the schema ($wgDBmwschema)
-	 * is left to the default "mediawiki" for all wikis, then the schema should be omitted
-	 * from these IDs.
+	 * and site functionality might be affected. If the schema ($wgDBmwschema) is set to the
+	 * default of "mediawiki" on all wikis, then the schema should be omitted from wiki IDs.
+	 *
+	 * @see WikiMap::getWikiIdFromDbDomain
+	 * @see SiteConfiguration::getLocalDatabases
+	 * @see self::LocalVirtualHosts
 	 */
 	public const LocalDatabases = [
 		'default' => [],
@@ -4251,6 +4273,17 @@ class MainConfigSchema {
 	 */
 	public const ParserCacheAsyncExpireTime = [
 		'default' => 60,
+	];
+
+	/**
+	 * Whether to re-run the refresh links jobs when asynchronous content
+	 * becomes ready.  This is needed if the asynchronous content can affect
+	 * categories or other page metadata.
+	 *
+	 * @since 1.44
+	 */
+	public const ParserCacheAsyncRefreshJobs = [
+		'default' => true,
 	];
 
 	/**
@@ -6638,37 +6671,6 @@ class MainConfigSchema {
 	];
 
 	/**
-	 * Enable fragment support in Parsoid (transclusions returning
-	 * html).  This is a temporary configuration variable to allow
-	 * testing a new parsoid feature, which will become the default
-	 * in future releases.
-	 *
-	 * Setting to `false` disables this support.  Setting to 'true' or the
-	 * string 'v1' to enable "version 1" support.  Setting to the string 'v2'
-	 * enables "version 2" support, which uses strip markers for extension
-	 * tag content. Setting to the string 'v3' makes the use of strip markers
-	 * for extension tag content a property of the Parser object.
-	 * @unstable EXPERIMENTAL
-	 */
-	public const ParsoidFragmentSupport = [
-		'default' => false,
-		'type' => 'boolean|string',
-	];
-
-	/**
-	 * Enable passing fragments as input to the Parsoid
-	 * DataAccess::preprocessWikitext() endpoint.
-	 * This is a temporary configuration variable to allow
-	 * testing a new parsoid feature, which will become the default
-	 * in future releases.
-	 * @unstable EXPERIMENTAL
-	 */
-	public const ParsoidFragmentInput = [
-		'default' => false,
-		'type' => 'boolean|string',
-	];
-
-	/**
 	 * If set, Parsoid's HTML output for parser functions will be different
 	 * from Parsoid HTML spec 2.x.x and lets us experiment with a better
 	 * output that might be rolled out in a future 3.x Parsoid HTML version.
@@ -7844,8 +7846,8 @@ class MainConfigSchema {
 	 *       - offset: (int) With "plain-numeric" and "readable-numeric", a constant to add to the
 	 *         stored index.
 	 *    - expireAfterDays: (int|null, default 90) If not null, how many days should the temporary
-	 *      accounts expire? Requires expireTemporaryAccounts.php to be periodically executed in
-	 *      order to work.
+	 *      accounts expire? You should run expireTemporaryAccounts.php periodically to expire
+	 *      temporary accounts. Otherwise they are expired when they try to edit.
 	 *    - notifyBeforeExpirationDays: (int|null, default 10) If not null, how many days before the
 	 *      expiration of a temporary account should it be notified that their account is to be expired.
 	 *
@@ -10003,9 +10005,8 @@ class MainConfigSchema {
 	 *   a comment.  You can make the profiling data in HTML render visibly
 	 *   instead by setting the 'visible' configuration flag.
 	 *
-	 * - ProfilerOutputStats: outputs profiling data as StatsD metrics.
-	 *   It expects that $wgStatsdServer is set to the host (or host:port)
-	 *   of a statsd server.
+	 * - ProfilerOutputStats: outputs profiling data in a format as configured
+	 *   by $wgStatsFormat. It expects that $wgStatsTarget is set.
 	 *
 	 * - ProfilerOutputDump: outputs dump files that are compatible
 	 *   with the XHProf gui. It expects that `$wgProfiler['outputDir']`
@@ -13071,7 +13072,7 @@ class MainConfigSchema {
 	 * For the pingback privacy policy, see:
 	 * https://wikimediafoundation.org/wiki/MediaWiki_Pingback_Privacy_Statement
 	 *
-	 * Aggregate pingback data is available at: https://pingback.wmflabs.org/
+	 * Aggregate pingback data is available at: https://pingback.wmcloud.org/
 	 *
 	 * @since 1.28
 	 */
@@ -13205,6 +13206,38 @@ class MainConfigSchema {
 	public const OutputPipelineStages = [
 		'default' => [],
 		'type' => 'map',
+	];
+
+	/**
+	 * Allow temporarily disabling use of certain features. Useful for
+	 * large site operators to push people to newer APIs while still
+	 * keeping the breakage short and contained.
+	 *
+	 * This should be an array, where a key is a feature name and the value
+	 * is an array of shutdown arrays, each containing the following keys:
+	 * 	'start' => Shutdown start, parsed with strtotime(). (required)
+	 * 	'end' => Shutdown end, parsed with strtotime(). (required)
+	 * 	'percentage' => Number between 0 and 100. If set, only a certain
+	 * 	  percentage of requests will be blocked.
+	 *
+	 * For example:
+	 * @code
+	 * $wgFeatureShutdown = [
+	 *   'pre-1.24-tokens' => [
+	 *     [
+	 *       'start' => '2021-07-01T00:00 +00:00',
+	 *       'end' => '2021-08-01T00:00 +00:00',
+	 *       'percentage' => 50,
+	 *     ],
+	 *   ],
+	 * ];
+	 * @encdode
+	 *
+	 * @since 1.44
+	 */
+	public const FeatureShutdown = [
+		'default' => [],
+		'type' => 'list',
 	];
 	// endregion -- End Miscellaneous
 

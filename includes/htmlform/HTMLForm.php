@@ -73,10 +73,10 @@ use MediaWiki\MainConfigNames;
 use MediaWiki\Message\Message;
 use MediaWiki\Page\PageReference;
 use MediaWiki\Parser\Sanitizer;
+use MediaWiki\Session\CsrfTokenSet;
 use MediaWiki\Status\Status;
 use MediaWiki\Title\Title;
 use MediaWiki\Title\TitleValue;
-use MediaWiki\Xml\Xml;
 use StatusValue;
 use Stringable;
 use Wikimedia\Message\MessageParam;
@@ -693,7 +693,9 @@ class HTMLForm extends ContextSource {
 				// Session tokens for logged-out users have no security value.
 				// However, if the user gave one, check it in order to give a nice
 				// "session expired" error instead of "permission denied" or such.
-				$tokenOkay = $this->getUser()->matchEditToken( $editToken, $this->mTokenSalt );
+				$tokenOkay = $this->getCsrfTokenSet()->matchTokenField(
+					CsrfTokenSet::DEFAULT_FIELD_NAME, $this->mTokenSalt
+				);
 			} else {
 				$tokenOkay = true;
 			}
@@ -1319,7 +1321,11 @@ class HTMLForm extends ContextSource {
 		# Include a <fieldset> wrapper for style, if requested.
 		if ( $this->mWrapperLegend !== false ) {
 			$legend = is_string( $this->mWrapperLegend ) ? $this->mWrapperLegend : false;
-			$html = Xml::fieldset( $legend, $html, $this->mWrapperAttributes );
+			$html = Html::rawElement(
+				'fieldset',
+				$this->mWrapperAttributes,
+				( $legend ? Html::element( 'legend', [], $legend ) : '' ) . $html
+			);
 		}
 
 		return Html::rawElement(
@@ -1386,7 +1392,7 @@ class HTMLForm extends ContextSource {
 
 			$attribs['class'] = [ 'mw-htmlform-submit' ];
 
-			$buttons .= Xml::submitButton( $this->getSubmitText(), $attribs ) . "\n";
+			$buttons .= Html::submitButton( $this->getSubmitText(), $attribs ) . "\n";
 		}
 
 		if ( $this->mShowCancel ) {
@@ -1829,7 +1835,11 @@ class HTMLForm extends ContextSource {
 	 * @return string The fieldset's Html
 	 */
 	protected function wrapFieldSetSection( $legend, $section, $attributes, $isRoot ) {
-		return Xml::fieldset( $legend, $section, $attributes ) . "\n";
+		return Html::rawElement(
+			'fieldset',
+			$attributes,
+			Html::element( 'legend', [], $legend ) . $section
+		) . "\n";
 	}
 
 	/**

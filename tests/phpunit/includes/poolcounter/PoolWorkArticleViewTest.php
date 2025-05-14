@@ -3,6 +3,7 @@
 use MediaWiki\CommentStore\CommentStoreComment;
 use MediaWiki\Content\WikitextContent;
 use MediaWiki\Logger\Spi as LoggerSpi;
+use MediaWiki\Page\WikiPage;
 use MediaWiki\Parser\ParserOptions;
 use MediaWiki\PoolCounter\PoolWorkArticleView;
 use MediaWiki\Revision\MutableRevisionRecord;
@@ -51,8 +52,12 @@ class PoolWorkArticleViewTest extends MediaWikiIntegrationTestCase {
 
 		$revisionRenderer = $this->getServiceContainer()->getRevisionRenderer();
 
+		$pool = $this->getServiceContainer()->getPoolCounterFactory()->create(
+			'ArticleView',
+			'test:' . $rev->getId()
+		);
 		return new PoolWorkArticleView(
-			'test:' . $rev->getId(),
+			$pool,
 			$rev,
 			$options,
 			$revisionRenderer,

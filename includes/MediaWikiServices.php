@@ -1174,6 +1174,14 @@ class MediaWikiServices extends ServiceContainer {
 	}
 
 	/**
+	 * @since 1.44
+	 * @return FeatureShutdown
+	 */
+	public function getFeatureShutdown(): FeatureShutdown {
+		return $this->getService( 'FeatureShutdown' );
+	}
+
+	/**
 	 * @since 1.35
 	 */
 	public function getFileBackendGroup(): FileBackendGroup {
@@ -1706,6 +1714,15 @@ class MediaWikiServices extends ServiceContainer {
 
 	/**
 	 * @since 1.32
+	 * @deprecated since 1.44 Use StatsFactory with `setLabel()` instead
+	 *
+	 * For example:
+	 *
+	 * ```
+	 * $statsFactory
+	 *      ->getCounter( 'example_total' )
+	 *      ->setLabel( 'wiki', WikiMap::getCurrentWikiId() )
+	 * ```
 	 */
 	public function getPerDbNameStatsdDataFactory(): StatsdDataFactoryInterface {
 		return $this->getService( 'PerDbNameStatsdDataFactory' );

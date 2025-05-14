@@ -6,6 +6,8 @@ use MediaWiki\Context\RequestContext;
 use MediaWiki\EditPage\EditPage;
 use MediaWiki\EditPage\SpamChecker;
 use MediaWiki\MainConfigNames;
+use MediaWiki\Page\Article;
+use MediaWiki\Page\WikiPage;
 use MediaWiki\Permissions\PermissionManager;
 use MediaWiki\Permissions\PermissionStatus;
 use MediaWiki\Request\FauxRequest;
@@ -16,12 +18,10 @@ use MediaWiki\User\User;
 use Wikimedia\Rdbms\ReadOnlyMode;
 
 /**
- * Integration tests for the various edit constraints, ensuring
- * that they result in failures as expected
+ * Confirm that when attempting to save edits that violate an edit constraint,
+ * that these edits are rejected in the way we expect.
  *
- * @covers \MediaWiki\EditPage\EditPage::internalAttemptSave
- * @covers \MediaWiki\EditPage\EditPage::internalAttemptSavePrivate
- *
+ * @covers \MediaWiki\EditPage\EditPage
  * @group Editing
  * @group Database
  * @group medium
@@ -159,7 +159,9 @@ class EditPageConstraintsTest extends MediaWikiLangTestCase {
 		return $wikiPageFactory->newFromTitle( $title );
 	}
 
-	/** AccidentalRecreationConstraint integration */
+	/**
+	 * @covers \MediaWiki\EditPage\Constraint\AccidentalRecreationConstraint
+	 */
 	public function testAccidentalRecreationConstraint() {
 		// Make sure it exists
 		$this->getExistingTestPage( 'AccidentalRecreationConstraintPage' );
@@ -186,7 +188,7 @@ class EditPageConstraintsTest extends MediaWikiLangTestCase {
 		$user = $this->getTestUser()->getUser();
 
 		$permissionManager = $this->getServiceContainer()->getPermissionManager();
-		// Needs these rights to pass AuthorizationConstraint and reach AccidentalRecreationConstraint
+		// Also needed for AuthorizationConstraint
 		$permissionManager->overrideUserRightsForTesting( $user, [ 'edit', 'createpage' ] );
 
 		// Started the edit on 1 January 2019, page was deleted on 1 January 2020
@@ -204,7 +206,9 @@ class EditPageConstraintsTest extends MediaWikiLangTestCase {
 		);
 	}
 
-	/** ExistingSectionEditConstraint integration */
+	/**
+	 * @covers \MediaWiki\EditPage\Constraint\ExistingSectionEditConstraint
+	 */
 	public function testExistingSectionEditConstraint() {
 		// Require the summary
 		$this->mergeMwGlobalArrayValue(
@@ -218,7 +222,6 @@ class EditPageConstraintsTest extends MediaWikiLangTestCase {
 		$user = $this->getTestUser()->getUser();
 
 		$permissionManager = $this->getServiceContainer()->getPermissionManager();
-		// Needs these rights to pass AuthorizationConstraint and reach NewSectionMissingSubjectConstraint
 		$permissionManager->overrideUserRightsForTesting( $user, [ 'edit' ] );
 
 		$edit = [
@@ -236,7 +239,9 @@ class EditPageConstraintsTest extends MediaWikiLangTestCase {
 		);
 	}
 
-	/** ChangeTagsConstraint integration */
+	/**
+	 * @covers \MediaWiki\EditPage\Constraint\ChangeTagsConstraint
+	 */
 	public function testChangeTagsConstraint() {
 		// Remove rights
 		$this->mergeMwGlobalArrayValue(
@@ -257,11 +262,12 @@ class EditPageConstraintsTest extends MediaWikiLangTestCase {
 		);
 	}
 
-	/** ContentModelChangeConstraint integration */
+	/**
+	 * @covers \MediaWiki\EditPage\Constraint\ContentModelChangeConstraint
+	 */
 	public function testContentModelChangeConstraint() {
 		$user = $this->getTestUser()->getUser();
 		$permissionManager = $this->getServiceContainer()->getPermissionManager();
-		// Needs these rights to pass AuthorizationConstraint and reach ContentModelChangeConstraint
 		$permissionManager->overrideUserRightsForTesting( $user, [ 'edit' ] );
 
 		$edit = [
@@ -288,7 +294,9 @@ class EditPageConstraintsTest extends MediaWikiLangTestCase {
 		);
 	}
 
-	/** AuthorizationConstraint integration - 'create' rights */
+	/**
+	 * @covers \MediaWiki\EditPage\Constraint\AuthorizationConstraint
+	 */
 	public function testAuthorizationConstraint_create() {
 		$page = $this->getNonexistingTestPage( 'AuthorizationConstraint_create page does not exist' );
 		$title = $page->getTitle();
@@ -311,14 +319,15 @@ class EditPageConstraintsTest extends MediaWikiLangTestCase {
 		);
 	}
 
-	/** DefaultTextConstraint integration */
+	/**
+	 * @covers \MediaWiki\EditPage\Constraint\DefaultTextConstraint
+	 */
 	public function testDefaultTextConstraint() {
 		$page = $this->getNonexistingTestPage( 'DefaultTextConstraint page does not exist' );
 		$title = $page->getTitle();
 
 		$user = $this->getTestUser()->getUser();
 		$permissionManager = $this->getServiceContainer()->getPermissionManager();
-		// Needs these rights to pass AuthorizationConstraint
 		$permissionManager->overrideUserRightsForTesting( $user, [ 'edit', 'createpage' ] );
 
 		$edit = [
@@ -336,17 +345,12 @@ class EditPageConstraintsTest extends MediaWikiLangTestCase {
 	}
 
 	/**
-	 * EditFilterMergedContentHookConstraint integration
+	 * @covers MediaWiki\EditPage\Constraint\EditFilterMergedContentHookConstraint
 	 * @dataProvider provideTestEditFilterMergedContentHookConstraint
-	 * @param bool $hookReturn
-	 * @param ?int $statusValue
-	 * @param bool $statusFatal
-	 * @param int $expectedFailure
-	 * @param string $expectedFailureStr
 	 */
 	public function testEditFilterMergedContentHookConstraint(
 		bool $hookReturn,
-		$statusValue,
+		?int $statusValue,
 		bool $statusFatal,
 		int $expectedFailure,
 		string $expectedFailureStr
@@ -368,7 +372,6 @@ class EditPageConstraintsTest extends MediaWikiLangTestCase {
 
 		$user = $this->getTestUser()->getUser();
 		$permissionManager = $this->getServiceContainer()->getPermissionManager();
-		// Needs these rights to pass AuthorizationConstraint
 		$permissionManager->overrideUserRightsForTesting( $user, [ 'edit', 'createpage' ] );
 
 		$edit = [
@@ -401,12 +404,10 @@ class EditPageConstraintsTest extends MediaWikiLangTestCase {
 	}
 
 	/**
-	 * AuthorizationConstraint integration - 'edit' rights
+	 * @covers \MediaWiki\EditPage\Constraint\AuthorizationConstraint
 	 * @dataProvider provideTestAuthorizationConstraint_edit
-	 * @param bool $anon
-	 * @param int $expectedErrorCode
 	 */
-	public function testAuthorizationConstraint_edit( $anon, $expectedErrorCode ) {
+	public function testAuthorizationConstraint_edit( bool $anon, int $expectedErrorCode ) {
 		if ( $anon ) {
 			$this->disableAutoCreateTempUser();
 			$user = $this->getServiceContainer()->getUserFactory()->newAnonymous( '127.0.0.1' );
@@ -436,12 +437,10 @@ class EditPageConstraintsTest extends MediaWikiLangTestCase {
 	}
 
 	/**
-	 * ImageRedirectConstraint integration
+	 * @covers \MediaWiki\EditPage\Constraint\ImageRedirectConstraint
 	 * @dataProvider provideTestImageRedirectConstraint
-	 * @param bool $anon
-	 * @param int $expectedErrorCode
 	 */
-	public function testImageRedirectConstraint( $anon, $expectedErrorCode ) {
+	public function testImageRedirectConstraint( bool $anon, int $expectedErrorCode ) {
 		if ( $anon ) {
 			$this->disableAutoCreateTempUser();
 			$user = $this->getServiceContainer()->getUserFactory()->newAnonymous( '127.0.0.1' );
@@ -450,7 +449,6 @@ class EditPageConstraintsTest extends MediaWikiLangTestCase {
 		}
 
 		$permissionManager = $this->getServiceContainer()->getPermissionManager();
-		// Needs these rights to pass AuthorizationConstraint and reach ImageRedirectConstraint
 		$permissionManager->overrideUserRightsForTesting( $user, [ 'edit' ] );
 
 		$edit = [
@@ -474,7 +472,9 @@ class EditPageConstraintsTest extends MediaWikiLangTestCase {
 		yield 'Registered user' => [ false, EditPage::AS_IMAGE_REDIRECT_LOGGED ];
 	}
 
-	/** MissingCommentConstraint integration */
+	/**
+	 * @covers \MediaWiki\EditPage\Constraint\MissingCommentConstraint
+	 */
 	public function testMissingCommentConstraint() {
 		$page = $this->getExistingTestPage( 'MissingCommentConstraint page does exist' );
 		$title = $page->getTitle();
@@ -482,7 +482,6 @@ class EditPageConstraintsTest extends MediaWikiLangTestCase {
 		$user = $this->getTestUser()->getUser();
 
 		$permissionManager = $this->getServiceContainer()->getPermissionManager();
-		// Needs these rights to pass AuthorizationConstraint and reach MissingCommentConstraint
 		$permissionManager->overrideUserRightsForTesting( $user, [ 'edit' ] );
 
 		$edit = [
@@ -500,7 +499,9 @@ class EditPageConstraintsTest extends MediaWikiLangTestCase {
 		);
 	}
 
-	/** NewSectionMissingSubjectConstraint integration */
+	/**
+	 * @covers \MediaWiki\EditPage\Constraint\NewSectionMissingSubjectConstraint
+	 */
 	public function testNewSectionMissingSubjectConstraint() {
 		// Require the summary
 		$this->mergeMwGlobalArrayValue(
@@ -514,7 +515,6 @@ class EditPageConstraintsTest extends MediaWikiLangTestCase {
 		$user = $this->getTestUser()->getUser();
 
 		$permissionManager = $this->getServiceContainer()->getPermissionManager();
-		// Needs these rights to pass AuthorizationConstraint and reach NewSectionMissingSubjectConstraint
 		$permissionManager->overrideUserRightsForTesting( $user, [ 'edit' ] );
 
 		$edit = [
@@ -532,8 +532,10 @@ class EditPageConstraintsTest extends MediaWikiLangTestCase {
 		);
 	}
 
-	/** PageSizeConstraint integration */
-	public function testPageSizeConstraintBeforeMerge() {
+	/**
+	 * @covers \MediaWiki\EditPage\Constraint\PageSizeConstraint
+	 */
+	public function testPageSizeConstraint_beforeMerge() {
 		// Max size: 1 kibibyte
 		$this->overrideConfigValue( MainConfigNames::MaxArticleSize, 1 );
 
@@ -550,8 +552,10 @@ class EditPageConstraintsTest extends MediaWikiLangTestCase {
 		);
 	}
 
-	/** PageSizeConstraint integration */
-	public function testPageSizeConstraintAfterMerge() {
+	/**
+	 * @covers \MediaWiki\EditPage\Constraint\PageSizeConstraint
+	 */
+	public function testPageSizeConstraint_afterMerge() {
 		// Max size: 1 kibibyte
 		$this->overrideConfigValue( MainConfigNames::MaxArticleSize, 1 );
 
@@ -569,7 +573,9 @@ class EditPageConstraintsTest extends MediaWikiLangTestCase {
 		);
 	}
 
-	/** ReadOnlyConstraint integration */
+	/**
+	 * @covers \MediaWiki\EditPage\Constraint\ReadOnlyConstraint
+	 */
 	public function testReadOnlyConstraint() {
 		$readOnlyMode = $this->createMock( ReadOnlyMode::class );
 		$readOnlyMode->method( 'isReadOnly' )->willReturn( true );
@@ -588,7 +594,9 @@ class EditPageConstraintsTest extends MediaWikiLangTestCase {
 		);
 	}
 
-	/** SelfRedirectConstraint integration */
+	/**
+	 * @covers \MediaWiki\EditPage\Constraint\SelfRedirectConstraint
+	 */
 	public function testSelfRedirectConstraint() {
 		// Use a page that does not exist to be sure that it is not already a self redirect
 		$page = $this->getNonexistingTestPage( 'SelfRedirectConstraint page does not exist' );
@@ -608,7 +616,9 @@ class EditPageConstraintsTest extends MediaWikiLangTestCase {
 		);
 	}
 
-	/** SimpleAntiSpamConstraint integration */
+	/**
+	 * @covers \MediaWiki\EditPage\Constraint\SimpleAntiSpamConstraint
+	 */
 	public function testSimpleAntiSpamConstraint() {
 		$edit = [
 			'wpTextbox1' => 'one',
@@ -625,7 +635,9 @@ class EditPageConstraintsTest extends MediaWikiLangTestCase {
 		);
 	}
 
-	/** SpamRegexConstraint integration */
+	/**
+	 * @covers \MediaWiki\EditPage\Constraint\SpamRegexConstraint
+	 */
 	public function testSpamRegexConstraint() {
 		$spamChecker = $this->createMock( SpamChecker::class );
 		$spamChecker->method( 'checkContent' )
@@ -648,7 +660,9 @@ class EditPageConstraintsTest extends MediaWikiLangTestCase {
 		);
 	}
 
-	/** AuthorizationConstraint integration - user blocks */
+	/**
+	 * @covers \MediaWiki\EditPage\Constraint\AuthorizationConstraint
+	 */
 	public function testAuthorizationConstraint_block() {
 		$permissionManager = $this->createMock( PermissionManager::class );
 		$permissionStatus = PermissionStatus::newEmpty();
@@ -672,7 +686,9 @@ class EditPageConstraintsTest extends MediaWikiLangTestCase {
 		);
 	}
 
-	/** LinkPurgeRateLimitConstraint integration */
+	/**
+	 * @covers \MediaWiki\EditPage\Constraint\LinkPurgeRateLimitConstraint
+	 */
 	public function testLinkPurgeRateLimitConstraint() {
 		$this->setTemporaryHook(
 			'PingLimiter',

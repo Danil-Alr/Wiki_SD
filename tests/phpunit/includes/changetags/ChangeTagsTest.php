@@ -24,10 +24,6 @@ class ChangeTagsTest extends MediaWikiIntegrationTestCase {
 		$this->changeTags = $this->getServiceContainer()->getChangeTagsStore();
 	}
 
-	protected function tearDown(): void {
-		parent::tearDown();
-	}
-
 	private function emptyChangeTagsTables() {
 		$dbw = $this->getDb();
 		$dbw->newDeleteQueryBuilder()
@@ -517,7 +513,7 @@ class ChangeTagsTest extends MediaWikiIntegrationTestCase {
 		];
 	}
 
-	public static function dataGetSoftwareTags() {
+	public static function provideGetSoftwareTags() {
 		return [
 			[
 				[
@@ -567,7 +563,7 @@ class ChangeTagsTest extends MediaWikiIntegrationTestCase {
 	}
 
 	/**
-	 * @dataProvider dataGetSoftwareTags
+	 * @dataProvider provideGetSoftwareTags
 	 * @covers \MediaWiki\ChangeTags\ChangeTagsStore::getSoftwareTags
 	 */
 	public function testGetSoftwareTags( $softwareTags, $expected ) {

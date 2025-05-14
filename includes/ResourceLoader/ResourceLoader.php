@@ -23,7 +23,6 @@
 namespace MediaWiki\ResourceLoader;
 
 use Exception;
-use HttpStatus;
 use InvalidArgumentException;
 use Less_Environment;
 use Less_Parser;
@@ -53,6 +52,7 @@ use stdClass;
 use Throwable;
 use UnexpectedValueException;
 use Wikimedia\DependencyStore\DependencyStore;
+use Wikimedia\Http\HttpStatus;
 use Wikimedia\Minify\CSSMin;
 use Wikimedia\Minify\IdentityMinifierState;
 use Wikimedia\Minify\IndexMap;
@@ -303,7 +303,7 @@ class ResourceLoader implements LoggerAwareInterface {
 	 */
 	public function registerTestModules(): void {
 		$extRegistry = ExtensionRegistry::getInstance();
-		$testModules = $extRegistry->getAttribute( 'QUnitTestModules' );
+		$testModules = $extRegistry->getAttribute( 'QUnitTestModule' );
 
 		$testModuleNames = [];
 		foreach ( $testModules as $name => &$module ) {
@@ -448,7 +448,7 @@ class ResourceLoader implements LoggerAwareInterface {
 			if ( $module ) {
 				$entity = $entitiesByModule[$moduleName];
 				$deps = $depsByEntity[$entity];
-				$paths = Module::expandRelativePaths( $deps['paths'] );
+				$paths = $deps['paths'];
 				$module->setFileDependencies( $context, $paths );
 			}
 		}
@@ -789,9 +789,9 @@ class ResourceLoader implements LoggerAwareInterface {
 	 * @return ScopedCallback
 	 */
 	protected function measureResponseTime() {
-		$statStart = $_SERVER['REQUEST_TIME_FLOAT'];
-		return new ScopedCallback( function () use ( $statStart ) {
-			$statTiming = microtime( true ) - $statStart;
+		$requestStart = $_SERVER['REQUEST_TIME_FLOAT'];
+		return new ScopedCallback( function () use ( $requestStart ) {
+			$statTiming = microtime( true ) - $requestStart;
 
 			$this->statsFactory->getTiming( 'resourceloader_response_time_seconds' )
 				->copyToStatsdAt( 'resourceloader.responseTime' )

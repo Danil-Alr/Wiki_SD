@@ -3,6 +3,7 @@
 use MediaWiki\Config\HashConfig;
 use MediaWiki\Config\MultiConfig;
 use MediaWiki\Context\RequestContext;
+use MediaWiki\FileRepo\File\File;
 use MediaWiki\Html\Html;
 use MediaWiki\Language\ILanguageConverter;
 use MediaWiki\Language\Language;
@@ -27,6 +28,7 @@ use MediaWiki\Request\WebRequest;
 use MediaWiki\ResourceLoader as RL;
 use MediaWiki\ResourceLoader\ResourceLoader;
 use MediaWiki\Session\SessionManager;
+use MediaWiki\Skin\QuickTemplate;
 use MediaWiki\Tests\ResourceLoader\ResourceLoaderTestCase;
 use MediaWiki\Tests\ResourceLoader\ResourceLoaderTestModule;
 use MediaWiki\Tests\Unit\Permissions\MockAuthorityTrait;
@@ -630,7 +632,7 @@ class OutputPageTest extends MediaWikiIntegrationTestCase {
 		$this->assertEquals( $expected, @$op->checkLastModified( $timestamp ) );
 	}
 
-	public function provideCheckLastModified() {
+	public static function provideCheckLastModified() {
 		$lastModified = time() - 3600;
 		return [
 			'Timestamp 0' =>
@@ -658,8 +660,8 @@ class OutputPageTest extends MediaWikiIntegrationTestCase {
 					[ MainConfigNames::CacheEpoch => wfTimestamp( TS_MW, $lastModified + 1 ) ] ],
 			'Recently-touched user' =>
 				[ $lastModified, $lastModified, false, [],
-				function ( OutputPage $op ) {
-					$op->getContext()->setUser( $this->getTestUser()->getUser() );
+				static function ( OutputPage $op, $testCase ) {
+					$op->getContext()->setUser( $testCase->getTestUser()->getUser() );
 				} ],
 			'After CDN expiry' =>
 				[ $lastModified, $lastModified, false,
@@ -946,6 +948,9 @@ class OutputPageTest extends MediaWikiIntegrationTestCase {
 		}
 
 		$title = $titles[0];
+		if ( is_array( $title ) ) {
+			$title = $this->makeMockTitle( ...$title );
+		}
 		$query = $queries[0];
 
 		$str = OutputPage::buildBacklinkSubtitle( $title, $query )->text();
@@ -964,8 +969,11 @@ class OutputPageTest extends MediaWikiIntegrationTestCase {
 	 */
 	public function testAddBacklinkSubtitle( $titles, $queries, $contains, $notContains ) {
 		$op = $this->newInstance();
-		foreach ( $titles as $i => $unused ) {
-			$op->addBacklinkSubtitle( $titles[$i], $queries[$i] );
+		foreach ( $titles as $i => $title ) {
+			if ( is_array( $title ) ) {
+				$title = $this->makeMockTitle( ...$title );
+			}
+			$op->addBacklinkSubtitle( $title, $queries[$i] );
 		}
 
 		$str = $op->getSubtitle();
@@ -979,8 +987,8 @@ class OutputPageTest extends MediaWikiIntegrationTestCase {
 		}
 	}
 
-	public function provideBacklinkSubtitle() {
-		$page1title = $this->makeMockTitle( 'Page 1', [ 'redirect' => true ] );
+	public static function provideBacklinkSubtitle() {
+		$page1title = [ 'Page 1', [ 'redirect' => true ] ];
 		$page1ref = new PageReferenceValue( NS_MAIN, 'Page 1', PageReference::LOCAL );
 
 		$row = [
@@ -3203,28 +3211,28 @@ class OutputPageTest extends MediaWikiIntegrationTestCase {
 		];
 	}
 
-	public function provideGetJsVarsEditable() {
+	public static function provideGetJsVarsEditable() {
 		yield 'can edit and create' => [
-			'performer' => $this->mockAnonAuthorityWithPermissions( [ 'edit', 'create' ] ),
+			'performerSpec' => 'with',
 			'expectedEditableConfig' => [
 				'wgIsProbablyEditable' => true,
 				'wgRelevantPageIsProbablyEditable' => true,
 			]
 		];
 		yield 'cannot edit or create' => [
-			'performer' => $this->mockAnonAuthorityWithoutPermissions( [ 'edit', 'create' ] ),
+			'performerSpec' => 'without',
 			'expectedEditableConfig' => [
 				'wgIsProbablyEditable' => false,
 				'wgRelevantPageIsProbablyEditable' => false,
 			]
 		];
 		yield 'only can edit relevant title' => [
-			'performer' => $this->mockAnonAuthority( static function (
+			'performerSpec' => static function (
 				string $permission,
 				PageIdentity $page
 			) {
 				return ( $permission === 'edit' || $permission === 'create' ) && $page->getDBkey() === 'RelevantTitle';
-			} ),
+			},
 			'expectedEditableConfig' => [
 				'wgIsProbablyEditable' => false,
 				'wgRelevantPageIsProbablyEditable' => true,
@@ -3235,13 +3243,20 @@ class OutputPageTest extends MediaWikiIntegrationTestCase {
 	/**
 	 * @dataProvider provideGetJsVarsEditable
 	 */
-	public function testGetJsVarsEditable( Authority $performer, array $expectedEditableConfig ) {
+	public function testGetJsVarsEditable( $performerSpec, array $expectedEditableConfig ) {
+		if ( is_string( $performerSpec ) ) {
+			$performer = $performerSpec === 'with'
+				? $this->mockAnonAuthorityWithPermissions( [ 'edit', 'create' ] )
+				: $this->mockAnonAuthorityWithoutPermissions( [ 'edit', 'create' ] );
+		} else {
+			$performer = $this->mockAnonAuthority( $performerSpec );
+		}
 		$op = $this->newInstance( [], null, null, $performer );
 		$op->getContext()->getSkin()->setRelevantTitle( Title::makeTitle( NS_MAIN, 'RelevantTitle' ) );
 		$this->assertArraySubmapSame( $expectedEditableConfig, $op->getJSVars() );
 	}
 
-	public function provideJsVarsAboutPageLang() {
+	public static function provideJsVarsAboutPageLang() {
 		// Format:
 		// - expected
 		// - title
@@ -3316,52 +3331,34 @@ class OutputPageTest extends MediaWikiIntegrationTestCase {
 		return $user;
 	}
 
-	public function provideUserCanPreview() {
+	public static function provideUserCanPreview() {
 		yield 'all good' => [
-			'performer' => $this->mockUserAuthorityWithPermissions(
-				$this->mockUser( true, true ),
-				[ 'edit' ]
-			),
+			'performerSpec' => [ 'with', true, true ],
 			'request' => new FauxRequest( [ 'action' => 'submit' ], true ),
 			true
 		];
 		yield 'get request' => [
-			'performer' => $this->mockUserAuthorityWithPermissions(
-				$this->mockUser( true, true ),
-				[ 'edit' ]
-			),
+			'performerSpec' => [ 'with', true, true ],
 			'request' => new FauxRequest( [ 'action' => 'submit' ], false ),
 			false
 		];
 		yield 'not a submit action' => [
-			'performer' => $this->mockUserAuthorityWithPermissions(
-				$this->mockUser( true, true ),
-				[ 'edit' ]
-			),
+			'performerSpec' => [ 'with', true, true ],
 			'request' => new FauxRequest( [ 'action' => 'something' ], true ),
 			false
 		];
 		yield 'anon can not' => [
-			'performer' => $this->mockUserAuthorityWithPermissions(
-				$this->mockUser( false, true ),
-				[ 'edit' ]
-			),
+			'performerSpec' => [ 'with', false, true ],
 			'request' => new FauxRequest( [ 'action' => 'submit' ], true ),
 			false
 		];
 		yield 'token not match' => [
-			'performer' => $this->mockUserAuthorityWithPermissions(
-				$this->mockUser( true, false ),
-				[ 'edit' ]
-			),
+			'performerSpec' => [ 'with', true, false ],
 			'request' => new FauxRequest( [ 'action' => 'submit' ], true ),
 			false
 		];
 		yield 'no permission' => [
-			'performer' => $this->mockUserAuthorityWithoutPermissions(
-				$this->mockUser( true, true ),
-				[ 'edit' ]
-			),
+			'performerSpec' => [ 'without', true, true ],
 			'request' => new FauxRequest( [ 'action' => 'submit' ], true ),
 			false
 		];
@@ -3370,12 +3367,16 @@ class OutputPageTest extends MediaWikiIntegrationTestCase {
 	/**
 	 * @dataProvider provideUserCanPreview
 	 */
-	public function testUserCanPreview( Authority $performer, WebRequest $request, bool $expected ) {
+	public function testUserCanPreview( $performerSpec, WebRequest $request, bool $expected ) {
+		$mockedUser = $this->mockUser( $performerSpec[1], $performerSpec[2] );
+		$performer = $performerSpec[0] === 'with'
+			? $this->mockUserAuthorityWithPermissions( $mockedUser, [ 'edit' ] )
+			: $this->mockUserAuthorityWithoutPermissions( $mockedUser, [ 'edit' ] );
 		$op = $this->newInstance( [], $request, null, $performer );
 		$this->assertSame( $expected, $op->userCanPreview() );
 	}
 
-	public function providePermissionStatus() {
+	public static function providePermissionStatus() {
 		yield 'no errors' => [
 			PermissionStatus::newEmpty(),
 			'',
@@ -3396,21 +3397,12 @@ class OutputPageTest extends MediaWikiIntegrationTestCase {
 		];
 	}
 
-	public function provideFormatPermissionStatus() {
+	public static function provideFormatPermissionStatus() {
 		yield 'RawMessage' => [
 			PermissionStatus::newEmpty()->fatal( new RawMessage( 'Foo Bar' ) ),
 			'(permissionserrorstext: 1)
 
 <div class="permissions-errors"><div class="mw-permissionerror-rawmessage">Foo Bar</div></div>',
-		];
-	}
-
-	public function provideFormatPermissionsErrorMessage() {
-		yield 'RawMessage' => [
-			PermissionStatus::newEmpty()->fatal( new RawMessage( 'Foo Bar' ) ),
-			'(permissionserrorstext: 1)
-
-<div class="permissions-errors"><div class="mw-permissionerror-rawmessage">(rawmessage: Foo Bar)</div></div>',
 		];
 	}
 
@@ -3422,21 +3414,6 @@ class OutputPageTest extends MediaWikiIntegrationTestCase {
 		$this->overrideConfigValue( MainConfigNames::LanguageCode, 'qqx' );
 
 		$actual = self::newInstance()->formatPermissionStatus( $status );
-		$this->assertEquals( $expected, $actual );
-	}
-
-	/**
-	 * @dataProvider providePermissionStatus
-	 * @dataProvider provideFormatPermissionsErrorMessage
-	 */
-	public function testFormatPermissionsErrorMessage( PermissionStatus $status, string $expected ) {
-		$this->overrideConfigValue( MainConfigNames::LanguageCode, 'qqx' );
-		$this->filterDeprecated( '/OutputPage::formatPermissionsErrorMessage was deprecated/' );
-		$this->filterDeprecated( '/toLegacyErrorArray/' );
-
-		// Unlike formatPermissionStatus, this method doesn't accept good statuses
-		$actual = $status->isGood() ? '' :
-			self::newInstance()->formatPermissionsErrorMessage( $status->toLegacyErrorArray() );
 		$this->assertEquals( $expected, $actual );
 	}
 

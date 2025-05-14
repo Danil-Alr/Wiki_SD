@@ -31,10 +31,6 @@ class PageContentHelperTest extends MediaWikiIntegrationTestCase {
 
 	private const NO_REVISION_ETAG = '"7afa43d0f642f1fda1b8e30f4f67243049f5fe77"';
 
-	protected function setUp(): void {
-		parent::setUp();
-	}
-
 	/**
 	 * @param array $params
 	 * @param Authority|null $authority
@@ -371,7 +367,7 @@ class PageContentHelperTest extends MediaWikiIntegrationTestCase {
 		$this->assertEquals( $expected, $data );
 	}
 
-	public function provideConstructRestbaseCompatibleMetadata() {
+	public static function provideConstructRestbaseCompatibleMetadata() {
 		$pageName = 'User:Morg';
 		$page = PageIdentityValue::localIdentity( 7, NS_USER, 'Morg' );
 		$user = UserIdentityValue::newRegistered( 444, 'Morg' );

@@ -23,13 +23,13 @@ namespace Wikimedia\ObjectCache;
 use ArrayIterator;
 use Closure;
 use Exception;
-use MapCacheLRU;
 use Psr\Log\LoggerAwareInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use RuntimeException;
 use UnexpectedValueException;
 use Wikimedia\LightweightObjectStore\ExpirationAwareness;
+use Wikimedia\MapCacheLRU\MapCacheLRU;
 use Wikimedia\Stats\StatsFactory;
 use Wikimedia\Telemetry\NoopTracer;
 use Wikimedia\Telemetry\SpanInterface;
@@ -1150,7 +1150,7 @@ class WANObjectCache implements
 	 *         $cache->makeGlobalKey( 'wikibase-item', $id ),
 	 *         self::INITIAL_TTV, // initial time-till-verify
 	 *         function ( $oldValue, &$ttv, &$setOpts, $oldAsOf ) use ( $checkKeys, $cache ) {
-	 *             $now = microtime( true );
+	 *             $now = time();
 	 *             // Use $oldValue if it passes max ultimate age and "check" key comparisons
 	 *             if ( $oldValue &&
 	 *                 $oldAsOf > max( $cache->getMultiCheckKeyTime( $checkKeys ) ) &&

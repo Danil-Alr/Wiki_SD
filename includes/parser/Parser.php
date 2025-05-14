@@ -25,12 +25,10 @@ namespace MediaWiki\Parser;
 
 use BadMethodCallException;
 use Exception;
-use HtmlArmor;
 use ImageGalleryBase;
 use ImageGalleryClassNotFoundException;
 use InvalidArgumentException;
 use LogicException;
-use MapCacheLRU;
 use MediaHandler;
 use MediaWiki\Cache\CacheKeyHelper;
 use MediaWiki\Category\TrackingCategories;
@@ -84,10 +82,11 @@ use MediaWiki\Xml\Xml;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
 use SectionProfiler;
-use StringUtils;
 use UnexpectedValueException;
 use Wikimedia\Bcp47Code\Bcp47CodeValue;
+use Wikimedia\HtmlArmor\HtmlArmor;
 use Wikimedia\IPUtils;
+use Wikimedia\MapCacheLRU\MapCacheLRU;
 use Wikimedia\Message\MessageParam;
 use Wikimedia\Message\MessageSpecifier;
 use Wikimedia\ObjectCache\WANObjectCache;
@@ -102,6 +101,7 @@ use Wikimedia\Parsoid\Utils\DOMCompat;
 use Wikimedia\Parsoid\Utils\DOMUtils;
 use Wikimedia\RemexHtml\Serializer\SerializerNode;
 use Wikimedia\ScopedCallback;
+use Wikimedia\StringUtils\StringUtils;
 
 /**
  * @defgroup Parser Parser
@@ -432,7 +432,6 @@ class Parser {
 		MainConfigNames::ParserEnableLegacyMediaDOM,
 		MainConfigNames::EnableParserLimitReporting,
 		MainConfigNames::ParserEnableUserLanguage,
-		MainConfigNames::ParsoidFragmentSupport,
 	];
 
 	/**
@@ -2931,9 +2930,6 @@ class Parser {
 	 * @param bool $argsOnly Only do argument (triple-brace) expansion, not
 	 *   double-brace expansion.
 	 * @param array $options Various options used by Parsoid:
-	 *  - 'stripExtTags' When true, put extension tags in general strip state; when
-	 *   false extension tags are skipped during OT_PREPROCESS; 'keep'
-	 *   makes no change to the stripExtTags setting.
 	 *  - 'parsoidTopLevelCall' Is this coming from Parsoid for top-level templates?
 	 *   This is used to set start-of-line flag to true for template expansions since that
 	 *   is how Parsoid models templates.
@@ -2971,14 +2967,7 @@ class Parser {
 		if ( $options['processNowiki'] ?? false ) {
 			$flags |= PPFrame::PROCESS_NOWIKI;
 		}
-		$stripExtTags = $options['stripExtTags'] ?? 'keep';
-		if ( $stripExtTags === 'keep' ) {
-			$stripExtTags = $this->mStripExtTags;
-		} else {
-			[ $stripExtTags, $this->mStripExtTags ] = [ $this->mStripExtTags, $stripExtTags ];
-		}
 		$text = $frame->expand( $dom, $flags );
-		$this->mStripExtTags = $stripExtTags;
 
 		return $text;
 	}
@@ -4124,14 +4113,7 @@ class Parser {
 				$output = "<$name$attrText>$content$close";
 			}
 			if ( !$this->mStripExtTags ) {
-				if ( in_array(
-					$this->svcOptions->get( MainConfigNames::ParsoidFragmentSupport ),
-					[ 'v2', 'v3' ], true
-				) ) {
-					$markerType = 'exttag';
-				} else {
-					$markerType = 'none';
-				}
+				$markerType = 'exttag';
 			}
 		}
 

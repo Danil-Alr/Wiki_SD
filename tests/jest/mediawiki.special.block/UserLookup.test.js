@@ -24,6 +24,7 @@ describe( 'UserLookup', () => {
 	};
 
 	it( 'should update menu items based on the API response', async () => {
+		mockMwConfigGet();
 		const wrapper = getWrapper( { modelValue: 'ExampleUser' } );
 		// Ensure that the initial search string matches the initial prop value.
 		const input = wrapper.find( '.cdx-text-input__input' );
@@ -39,6 +40,13 @@ describe( 'UserLookup', () => {
 		expect( listBox.element.children ).toHaveLength( 2 );
 		expect( listBox.element.children[ 0 ].textContent ).toBe( 'ExampleUser' );
 		expect( listBox.element.children[ 1 ].textContent ).toBe( 'ExampleUser2' );
+
+		// Select a target and then focus on the field to ensure an API request is made
+		// and a new set of results is listed.
+		await listBox.element.children[ 1 ].click();
+		await input.trigger( 'focus' );
+		await flushPromises();
+		expect( listBox.element.children ).toHaveLength( 1 );
 	} );
 
 	it( 'should show an error if the pre-supplied target is missing', async () => {
@@ -101,31 +109,27 @@ describe( 'UserLookup', () => {
 		expect( document.activeElement.name ).toStrictEqual( 'wpTarget' );
 	} );
 
-	it( 'blockTargetUserInput and targetUser mismatch after mounting (T389955)', async () => {
-		mockMwConfigGet( { blockTargetUserInput: 'Examp' } );
-		// null modelValue, meaning no target user is pre-supplied.
-		const wrapper = getWrapper( { modelValue: null }, [ {
+	it( 'should sanitize IPv6 or Range after target is selected', async () => {
+		const target = '2001:0db8:85a3:0000:0000:8a2e:0370:7334';
+		const expected = '2001:DB8:85A3:0:0:8A2E:370:7334';
+
+		mw.util.isIPAddress = jest.fn().mockReturnValue( true );
+		mw.util.sanitizeIP = jest.fn().mockReturnValue( expected );
+
+		const wrapper = getWrapper( { modelValue: target }, [ {
 			params: {
 				list: 'allusers',
-				auprefix: 'Examp'
+				auprefix: target
 			},
 			response: {
 				query: {
-					allusers: [
-						{ name: 'ExampleUser' },
-						{ name: 'ExampleUser2' }
-					]
+					allusers: []
 				}
 			}
 		} ] );
 		const store = useBlockStore();
-		await flushPromises();
-		expect( store.targetUser ).toBe( '' );
-		expect( wrapper.vm.currentSearchTerm ).toBe( 'Examp' );
-		expect( wrapper.vm.menuItems ).toStrictEqual( [
-			{ label: 'ExampleUser', value: 'ExampleUser' },
-			{ label: 'ExampleUser2', value: 'ExampleUser2' }
-		] );
-		// TODO: Assert .cdx-menu is visible; currently fails only in test environment.
+
+		await wrapper.vm.onChange();
+		expect( store.targetUser ).toBe( expected );
 	} );
 } );

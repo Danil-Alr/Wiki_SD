@@ -1572,6 +1572,12 @@ class MainConfigNames {
 	public const ParserCacheAsyncExpireTime = 'ParserCacheAsyncExpireTime';
 
 	/**
+	 * Name constant for the ParserCacheAsyncRefreshJobs setting, for use with Config::get()
+	 * @see MainConfigSchema::ParserCacheAsyncRefreshJobs
+	 */
+	public const ParserCacheAsyncRefreshJobs = 'ParserCacheAsyncRefreshJobs';
+
+	/**
 	 * Name constant for the OldRevisionParserCacheExpireTime setting, for use with Config::get()
 	 * @see MainConfigSchema::OldRevisionParserCacheExpireTime
 	 */
@@ -2387,18 +2393,6 @@ class MainConfigNames {
 	 * @see MainConfigSchema::ParsoidSettings
 	 */
 	public const ParsoidSettings = 'ParsoidSettings';
-
-	/**
-	 * Name constant for the ParsoidFragmentSupport setting, for use with Config::get()
-	 * @see MainConfigSchema::ParsoidFragmentSupport
-	 */
-	public const ParsoidFragmentSupport = 'ParsoidFragmentSupport';
-
-	/**
-	 * Name constant for the ParsoidFragmentInput setting, for use with Config::get()
-	 * @see MainConfigSchema::ParsoidFragmentInput
-	 */
-	public const ParsoidFragmentInput = 'ParsoidFragmentInput';
 
 	/**
 	 * Name constant for the ParsoidExperimentalParserFunctionOutput setting, for use with Config::get()
@@ -4541,5 +4535,11 @@ class MainConfigNames {
 	 * @see MainConfigSchema::OutputPipelineStages
 	 */
 	public const OutputPipelineStages = 'OutputPipelineStages';
+
+	/**
+	 * Name constant for the FeatureShutdown setting, for use with Config::get()
+	 * @see MainConfigSchema::FeatureShutdown
+	 */
+	public const FeatureShutdown = 'FeatureShutdown';
 
 }

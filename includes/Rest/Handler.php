@@ -481,10 +481,17 @@ abstract class Handler {
 	protected function getConditionalHeaderUtil() {
 		if ( $this->conditionalHeaderUtil === null ) {
 			$this->conditionalHeaderUtil = new ConditionalHeaderUtil;
+
+			// NOTE: It would be nicer to have Handler implement a
+			// ConditionalHeaderValues interface that defines methods that
+			// ConditionalHeaderUtil can call. But the relevant methods already
+			// exist in Handler as protected and stable to override.
+			// We can't make them public without breaking all subclasses that
+			// override them. So we pass closures for now.
 			$this->conditionalHeaderUtil->setValidators(
-				$this->getETag(),
-				$this->getLastModified(),
-				$this->hasRepresentation()
+				fn () => $this->getETag(),
+				fn () => $this->getLastModified(),
+				fn () => $this->hasRepresentation()
 			);
 		}
 		return $this->conditionalHeaderUtil;
@@ -661,7 +668,7 @@ abstract class Handler {
 
 		// TODO: Allow additional information about parameters and responses to
 		//       be provided in the route definition.
-		$oas = $this->getConfig()['OAS'] ?? [];
+		$oas = $this->getConfig()['openApiSpec'] ?? [];
 		$spec += $oas;
 
 		return $spec;
@@ -830,11 +837,10 @@ abstract class Handler {
 			$ok['content']['application/json']['schema'] = $bodySchema;
 		}
 
-		// XXX: we should add info about redirects, and maybe a default for errors?
+		// XXX: we should add info about redirects
 		return [
 			'200' => $ok,
-			'400' => [ '$ref' => '#/components/responses/GenericErrorResponse' ],
-			'500' => [ '$ref' => '#/components/responses/GenericErrorResponse' ],
+			'default' => [ '$ref' => '#/components/responses/GenericErrorResponse' ],
 		];
 	}
 
@@ -1091,6 +1097,9 @@ abstract class Handler {
 	 * This must be a complete ETag, including double quotes.
 	 * See RFC 7231 §7.2 and RFC 7232 §2.3 for semantics.
 	 *
+	 * This method should return null if the resource doesn't exist. It may also
+	 * return null if ETag semantics is not supported by the Handler.
+	 *
 	 * @stable to override
 	 *
 	 * @return string|null
@@ -1103,6 +1112,9 @@ abstract class Handler {
 	 * The subclass should override this to indicate whether the resource
 	 * exists. This is used for wildcard validators, for example "If-Match: *"
 	 * fails if the resource does not exist.
+	 *
+	 * If this method returns null, the value returned by getETag() will be used
+	 * to determine whether the resource exists.
 	 *
 	 * In a state-changing request, the return value of this method should
 	 * reflect the state before the requested change is applied.

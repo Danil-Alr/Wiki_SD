@@ -11,17 +11,6 @@ if ( form ) {
 	( new mw.Api() ).loadMessagesIfMissing(
 		Object.keys( mw.config.get( 'partialBlockActionOptions' ) || {} )
 	).then( () => {
-		// Sync server-provided target input with what will be used in the Vue app.
-		const targetInput = document.getElementById( 'mw-bi-target' );
-		if ( targetInput && targetInput.value &&
-			targetInput.value !== mw.config.get( 'blockTargetUser' )
-		) {
-			// Prevent further changes from going out of sync.
-			targetInput.disabled = true;
-			// Used by UserLookup.vue
-			mw.config.set( 'blockTargetUserInput', targetInput.value );
-		}
-
 		Vue.createMwApp( App )
 			.use( createPinia() )
 			.mount( form );
@@ -29,3 +18,25 @@ if ( form ) {
 		form.addEventListener( 'submit', ( e ) => e.preventDefault() );
 	} );
 }
+
+/**
+ * Fired after a successful (re-)block on Special:Block. Only applicable on wikis with
+ * {@link https://www.mediawiki.org/wiki/Manual:$wgEnableMultiBlocks multiblocks} enabled.
+ *
+ * @event ~'SpecialBlock.block'
+ * @memberof Hooks
+ * @param {Object} data Response from the block API.
+ * @stable
+ */
+
+/**
+ * Fired when the form on Special:Block is opened or closed. Only applicable on wikis with
+ * {@link https://www.mediawiki.org/wiki/Manual:$wgEnableMultiBlocks multiblocks} enabled.
+ *
+ * @event ~'SpecialBlock.form'
+ * @memberof Hooks
+ * @param {boolean} open Whether the form is open or closed.
+ * @param {string} target Username, IP, or IP range.
+ * @param {number|null} id The block ID, when editing an existing block.
+ * @stable
+ */

@@ -9,16 +9,19 @@ use MediaWiki\Content\ContentHandler;
 use MediaWiki\Context\RequestContext;
 use MediaWiki\Deferred\DeferredUpdates;
 use MediaWiki\HookContainer\HookRunner;
+use MediaWiki\JobQueue\JobQueueMemory;
 use MediaWiki\Language\Language;
 use MediaWiki\Linker\LinkTarget;
 use MediaWiki\Logger\LegacyLogger;
 use MediaWiki\Logger\LegacySpi;
 use MediaWiki\Logger\LogCapturingSpi;
 use MediaWiki\Logger\LoggerFactory;
+use MediaWiki\Logger\LoggingContext;
 use MediaWiki\MainConfigNames;
 use MediaWiki\MediaWikiServices;
 use MediaWiki\Page\PageIdentity;
 use MediaWiki\Page\ProperPageIdentity;
+use MediaWiki\Page\WikiPage;
 use MediaWiki\Parser\ParserOptions;
 use MediaWiki\Permissions\Authority;
 use MediaWiki\Permissions\UltimateAuthority;
@@ -537,6 +540,7 @@ abstract class MediaWikiIntegrationTestCase extends PHPUnit\Framework\TestCase {
 		MediaWiki\Session\SessionManager::resetCache();
 
 		TestUserRegistry::clear();
+		LoggerFactory::setContext( new LoggingContext() );
 	}
 
 	/**
@@ -1613,7 +1617,7 @@ abstract class MediaWikiIntegrationTestCase extends PHPUnit\Framework\TestCase {
 	 * Should be called from addDBData().
 	 *
 	 * @since 1.25 ($namespace in 1.28)
-	 * @param string|Title $title Page name or title
+	 * @param string|Title|LinkTarget|PageIdentity $title Page name or title
 	 * @param string $text Page's content
 	 * @param int|null $namespace Namespace id (name cannot already contain namespace)
 	 * @param User|null $user If null, static::getTestSysop()->getUser() is used.
@@ -1629,21 +1633,26 @@ abstract class MediaWikiIntegrationTestCase extends PHPUnit\Framework\TestCase {
 			throw new RuntimeException( 'When testing with pages, the test must use @group Database.' );
 		}
 
-		if ( is_string( $title ) ) {
-			$title = Title::newFromText( $title, $namespace );
+		// If the first parameter isn't a Title, convert it to a Title
+		if ( $title instanceof PageIdentity ) {
+			$titleObject = Title::newFromPageIdentity( $title );
+		} elseif ( $title instanceof LinkTarget ) {
+			$titleObject = Title::newFromLinkTarget( $title );
+		} elseif ( is_string( $title ) ) {
+			$titleObject = Title::newFromText( $title, $namespace );
+		} else {
+			$titleObject = $title;
 		}
 
 		$user ??= static::getTestSysop()->getUser();
-		$comment = __METHOD__ . ': Sample page for unit test.';
-
-		$page = $this->getServiceContainer()->getWikiPageFactory()->newFromTitle( $title );
-		$status = $page->doUserEditContent( ContentHandler::makeContent( $text, $title ), $user, $comment );
+		$editSummary = __METHOD__ . ': Sample page for unit test.';
+		$page = $this->getServiceContainer()->getWikiPageFactory()->newFromTitle( $titleObject );
+		$status = $page->doUserEditContent( ContentHandler::makeContent( $text, $titleObject ), $user, $editSummary );
 		if ( !$status->isOK() ) {
 			$this->fail( $status->getWikiText() );
 		}
-
 		return [
-			'title' => $title,
+			'title' => $titleObject,
 			'id' => $page->getId(),
 		];
 	}
@@ -2363,7 +2372,7 @@ abstract class MediaWikiIntegrationTestCase extends PHPUnit\Framework\TestCase {
 	 *
 	 * @return array
 	 */
-	protected function arrayWrap( array $elements ) {
+	protected static function arrayWrap( array $elements ) {
 		return array_map(
 			static function ( $element ) {
 				return [ $element ];
@@ -2585,11 +2594,13 @@ abstract class MediaWikiIntegrationTestCase extends PHPUnit\Framework\TestCase {
 	 *
 	 * @note This is implemented to remove ALL handlers for the given hook
 	 *       for the duration of the current test case.
-	 * @deprecated since 1.36, use clearHook() instead.
+	 * @deprecated since 1.36, use clearHook() instead, hard deprecated
+	 *    since 1.44.
 	 *
 	 * @param string $hookName
 	 */
 	protected function removeTemporaryHook( $hookName ) {
+		wfDeprecated( __METHOD__, '1.36' );
 		$this->clearHook( $hookName );
 	}
 

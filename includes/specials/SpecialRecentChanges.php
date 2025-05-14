@@ -20,7 +20,6 @@
 
 namespace MediaWiki\Specials;
 
-use HtmlArmor;
 use MediaWiki\ChangeTags\ChangeTags;
 use MediaWiki\ChangeTags\ChangeTagsStore;
 use MediaWiki\Context\IContextSource;
@@ -40,9 +39,9 @@ use MediaWiki\User\TempUser\TempUserConfig;
 use MediaWiki\User\UserIdentityUtils;
 use MediaWiki\Utils\MWTimestamp;
 use MediaWiki\Watchlist\WatchedItemStoreInterface;
-use MediaWiki\Xml\Xml;
 use OOUI\ButtonWidget;
 use OOUI\HtmlSnippet;
+use Wikimedia\HtmlArmor\HtmlArmor;
 use Wikimedia\Rdbms\IReadableDatabase;
 use Wikimedia\Rdbms\IResultWrapper;
 use Wikimedia\Rdbms\RawSQLExpression;
@@ -642,7 +641,7 @@ class SpecialRecentChanges extends ChangesListSpecialPage {
 			if ( is_array( $optionRow ) ) {
 				$out .= Html::rawElement(
 					'td',
-					[ 'class' => 'mw-label mw-' . $name . '-label' ],
+					[ 'class' => [ 'mw-label', 'mw-' . $name . '-label' ] ],
 					$optionRow[0]
 				);
 				$out .= Html::rawElement(
@@ -672,10 +671,13 @@ class SpecialRecentChanges extends ChangesListSpecialPage {
 		$panel[] = $form;
 		$panelString = implode( "\n", $panel );
 
-		$rcoptions = Xml::fieldset(
-			$this->msg( 'recentchanges-legend' )->text(),
-			$panelString,
-			[ 'class' => 'rcoptions cloptions' ]
+		$rcoptions = Html::rawElement(
+			'fieldset',
+			[ 'class' => 'rcoptions cloptions' ],
+			Html::element(
+				'legend', [],
+				$this->msg( 'recentchanges-legend' )->text()
+			) . $panelString
 		);
 
 		// Insert a placeholder for RCFilters
@@ -762,7 +764,7 @@ class SpecialRecentChanges extends ChangesListSpecialPage {
 
 				$contentWrapper = Html::rawElement( 'div',
 					array_merge(
-						[ 'class' => 'mw-recentchanges-toplinks-content mw-collapsible-content' ],
+						[ 'class' => [ 'mw-recentchanges-toplinks-content', 'mw-collapsible-content' ] ],
 						$langAttributes
 					),
 					$content

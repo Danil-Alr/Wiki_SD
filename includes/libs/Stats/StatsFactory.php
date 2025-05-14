@@ -31,6 +31,7 @@ use Wikimedia\Stats\Exceptions\InvalidConfigurationException;
 use Wikimedia\Stats\Metrics\BaseMetric;
 use Wikimedia\Stats\Metrics\CounterMetric;
 use Wikimedia\Stats\Metrics\GaugeMetric;
+use Wikimedia\Stats\Metrics\HistogramMetric;
 use Wikimedia\Stats\Metrics\NullMetric;
 use Wikimedia\Stats\Metrics\TimingMetric;
 
@@ -111,6 +112,14 @@ class StatsFactory {
 	/**
 	 * Makes a new TimingMetric or fetches one from cache.
 	 *
+	 * The timing data should be in the range [5ms, 60s]; use
+	 * ::getHistogram() if you need a different range.
+	 *
+	 * This range limitation is a consequence of the recommended
+	 * setup with prometheus/statsd_exporter (as dogstatsd target)
+	 * and Prometheus (as time series database), with
+	 * `statsd_exporter::histogram_buckets` set to a 5ms-60s range.
+	 *
 	 * If a collision occurs, returns a NullMetric to suppress exceptions.
 	 *
 	 * @param string $name
@@ -121,32 +130,53 @@ class StatsFactory {
 	}
 
 	/**
+	 * Makes a new HistogramMetric from a list of buckets.
+	 *
+	 * Beware: this is for storing non-time data in histograms, like byte
+	 * sizes, or time data outside of the range [5ms, 60s].
+	 *
+	 * Avoid changing the bucket list once a metric has been
+	 * deployed.  When bucket list changes are unavoidable, change the metric
+	 * name and handle the transition in PromQL.
+	 *
+	 * @param string $name
+	 * @param array<int|float> $buckets
+	 * @return HistogramMetric
+	 */
+	public function getHistogram( string $name, array $buckets ) {
+		$name = StatsUtils::normalizeString( $name );
+		StatsUtils::validateMetricName( $name );
+		return new HistogramMetric( $this, $name, $buckets );
+	}
+
+	/**
 	 * Send all buffered metrics to the target and destroy the cache.
 	 */
 	public function flush(): void {
-		$this->trackUsage();
-		$this->emitter->send();
-		$this->cache->clear();
+		$cacheSize = $this->getCacheCount();
+
+		// Optimization: To encourage long-running scripts to frequently yield
+		// and flush (T181385), it is important that we don't do any work here
+		// unless new stats were added to the cache since the last flush.
+		if ( $cacheSize > 0 ) {
+			$this->getCounter( 'stats_buffered_total' )
+				->copyToStatsdAt( 'stats.statslib.buffered' )
+				->incrementBy( $cacheSize );
+
+			$this->emitter->send();
+			$this->cache->clear();
+		}
 	}
 
 	/**
 	 * Get a total of the number of samples in cache.
 	 */
-	public function getCacheCount(): int {
+	private function getCacheCount(): int {
 		$accumulator = 0;
 		foreach ( $this->cache->getAllMetrics() as $metric ) {
 			$accumulator += $metric->getSampleCount();
 		}
 		return $accumulator;
-	}
-
-	/**
-	 * Create a metric totaling all samples in the cache.
-	 */
-	private function trackUsage(): void {
-		$this->getCounter( 'stats_buffered_total' )
-			->copyToStatsdAt( 'stats.statslib.buffered' )
-			->incrementBy( $this->getCacheCount() );
 	}
 
 	/**
@@ -165,7 +195,7 @@ class StatsFactory {
 			$metric = $this->cache->get( $this->component, $name, $className );
 		} catch ( TypeError | InvalidArgumentException | InvalidConfigurationException $ex ) {
 			// Log the condition and give the caller something that will absorb calls.
-			trigger_error( $ex->getMessage(), E_USER_WARNING );
+			trigger_error( "Stats: {$name}: {$ex->getMessage()}", E_USER_WARNING );
 			return new NullMetric;
 		}
 		if ( $metric === null ) {
@@ -201,7 +231,16 @@ class StatsFactory {
 	 * $x = new MySubject( $statsHelper->getStatsFactory() );
 	 * $x->execute();
 	 *
-	 * $this->assertEquals( 1, $statsHelper->count( 'example_executions_total{fooLabel="bar"}' ) );
+	 * // Assert full (emitting more is unexpected)
+	 * $this->assertSame(
+	 *     [
+	 *         'example_executions_total:1|c|#foo:bar'
+	 *     ],
+	 *     $statsHelper->consumeAllFormatted()
+	 * );
+	 *
+	 * // Assert partially (at least this should be emitted)
+	 * $this->assertSame( 1, $statsHelper->count( 'example_executions_total{foo="bar"}' ) );
 	 * ```
 	 *
 	 * @since 1.44

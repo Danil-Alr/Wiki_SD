@@ -151,7 +151,6 @@ class ExtensionProcessor implements Processor {
 		'TranslationAliasesDirs',
 		'ForeignResourcesDir',
 		'Hooks',
-		'DomainEventSubscribers', // Deprecated (T389033)
 		'DomainEventIngresses',
 		'MessagePosterModule',
 		'MessagesDirs',
@@ -308,7 +307,7 @@ class ExtensionProcessor implements Processor {
 						'class' => $className,
 					];
 				}
-				$module['name'] = $name;
+				$module['name'] ??= $name;
 			}
 		}
 
@@ -588,12 +587,6 @@ class ExtensionProcessor implements Processor {
 			$subscriber['extensionPath'] = $path;
 			$this->attributes['DomainEventIngresses'][] = $subscriber;
 		}
-
-		// Deprecated (T389033)
-		foreach ( $info['DomainEventSubscribers'] ?? [] as $subscriber ) {
-			$subscriber['extensionPath'] = $path;
-			$this->attributes['DomainEventIngresses'][] = $subscriber;
-		}
 	}
 
 	/**
@@ -683,7 +676,7 @@ class ExtensionProcessor implements Processor {
 					$data['localBasePath'] = "$dir/{$data['localBasePath']}";
 				}
 			}
-			$this->attributes['QUnitTestModules']["test.{$info['name']}"] = $data;
+			$this->attributes['QUnitTestModule']["test.{$info['name']}"] = $data;
 		}
 
 		if ( isset( $info['MessagePosterModule'] ) ) {

@@ -304,9 +304,11 @@ class Xml {
 	 * @param array $attribs Other attributes
 	 * @return string HTML
 	 *
-	 * @deprecated since 1.42, use {@see Html::input} instead
+	 * @deprecated since 1.42, use {@see Html::input} instead; emitting warnings since 1.44
 	 */
 	public static function input( $name, $size = false, $value = false, $attribs = [] ) {
+		wfDeprecated( __METHOD__, '1.42' );
+
 		$attributes = [ 'name' => $name ];
 
 		if ( $size ) {
@@ -360,9 +362,11 @@ class Xml {
 	 * @param array $attribs Array other attributes
 	 * @return string HTML
 	 *
-	 * @deprecated since 1.42, use {@see Html::check} instead
+	 * @deprecated since 1.42, use {@see Html::check} instead; emiting warnings since 1.44
 	 */
 	public static function check( $name, $checked = false, $attribs = [] ) {
+		wfDeprecated( __METHOD__, '1.42' );
+
 		return self::element( 'input', array_merge(
 			[
 				'name' => $name,
@@ -380,9 +384,11 @@ class Xml {
 	 * @param array $attribs Other attributes
 	 * @return string HTML
 	 *
-	 * @deprecated since 1.42, use {@see Html::radio} instead
+	 * @deprecated since 1.42, use {@see Html::radio} instead; emiting warnings since 1.44
 	 */
 	public static function radio( $name, $value, $checked = false, $attribs = [] ) {
+		wfDeprecated( __METHOD__, '1.42' );
+
 		return self::element( 'input', [
 			'name' => $name,
 			'type' => 'radio',
@@ -500,9 +506,11 @@ class Xml {
 	 * @param array $attribs Optional custom attributes
 	 * @return string HTML
 	 *
-	 * @deprecated since 1.42, use {@see Html::submitButton} instead
+	 * @deprecated since 1.42, use {@see Html::submitButton} instead; emitting deprecation warnings since 1.44
 	 */
 	public static function submitButton( $value, $attribs = [] ) {
+		wfDeprecated( __METHOD__, '1.42' );
+
 		$attribs += [
 			'type' => 'submit',
 			'value' => $value,
@@ -685,9 +693,11 @@ class Xml {
 	 * @param array $attribs Any other attributes for the textarea
 	 * @return string
 	 *
-	 * @deprecated since 1.42, use {@see Html::textarea} instead
+	 * @deprecated since 1.42, use {@see Html::textarea} instead; emiting deprecation warnings since 1.44
 	 */
 	public static function textarea( $name, $content, $cols = 40, $rows = 5, $attribs = [] ) {
+		wfDeprecated( __METHOD__, '1.42' );
+
 		return self::element( 'textarea',
 					[
 						'name' => $name,
@@ -839,7 +849,13 @@ class Xml {
 			$form .= self::openElement( 'tr' );
 			$form .= self::tags( 'td', [], '' );
 			$form .= self::openElement( 'td', [ 'class' => 'mw-submit' ] )
-				. self::submitButton( wfMessage( $submitLabel )->text(), $submitAttribs )
+				. Html::element(
+					'input',
+					$submitAttribs + [
+						'type' => 'submit',
+						'value' => wfMessage( $submitLabel )->text(),
+					]
+				)
 				. self::closeElement( 'td' );
 			$form .= self::closeElement( 'tr' );
 		}

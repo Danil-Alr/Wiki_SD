@@ -14,6 +14,7 @@ use MediaWiki\Page\PageIdentity;
 use MediaWiki\Page\PageIdentityValue;
 use MediaWiki\Page\ProperPageIdentity;
 use MediaWiki\Page\RollbackPage;
+use MediaWiki\Page\WikiPage;
 use MediaWiki\Permissions\Authority;
 use MediaWiki\RecentChanges\RecentChange;
 use MediaWiki\Revision\SlotRecord;
@@ -33,7 +34,6 @@ use MediaWiki\User\UserIdentityValue;
 use MediaWikiIntegrationTestCase;
 use PHPUnit\Framework\Assert;
 use Wikimedia\Rdbms\ReadOnlyMode;
-use WikiPage;
 
 /**
  * @group Database
@@ -61,17 +61,17 @@ class RollbackPageTest extends MediaWikiIntegrationTestCase {
 		);
 	}
 
-	public function provideAuthorize() {
+	public static function provideAuthorize() {
 		yield 'Allowed' => [
-			'authority' => $this->mockRegisteredUltimateAuthority(),
+			'authoritySpec' => 'ultimate',
 			'expect' => true,
 		];
 		yield 'No edit' => [
-			'authority' => $this->mockRegisteredAuthorityWithoutPermissions( [ 'edit' ] ),
+			'authoritySpec' => [ 'edit' ],
 			'expect' => false,
 		];
 		yield 'No rollback' => [
-			'authority' => $this->mockRegisteredAuthorityWithoutPermissions( [ 'rollback' ] ),
+			'authoritySpec' => [ 'rollback' ],
 			'expect' => false,
 		];
 	}
@@ -80,7 +80,10 @@ class RollbackPageTest extends MediaWikiIntegrationTestCase {
 	 * @covers ::authorizeRollback
 	 * @dataProvider provideAuthorize
 	 */
-	public function testAuthorize( Authority $authority, bool $expect ) {
+	public function testAuthorize( $authoritySpec, bool $expect ) {
+		$authority = $authoritySpec === 'ultimate'
+			? $this->mockRegisteredUltimateAuthority()
+			: $this->mockRegisteredAuthorityWithoutPermissions( $authoritySpec );
 		$this->assertSame(
 			$expect,
 			$this->getServiceContainer()

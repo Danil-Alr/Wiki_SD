@@ -1,6 +1,7 @@
 {
 	"@metadata": {
 		"authors": [
+			"Amankel'dy",
 			"Arystanbek",
 			"Batyrbek.kz",
 			"Darzz",
@@ -57,7 +58,7 @@
 	"thu": "Бей",
 	"fri": "Жұм",
 	"sat": "Сен",
-	"sun": "жек",
+	"sun": "Жек",
 	"period-am": "ТБ",
 	"period-pm": "ТК",
 	"timezone-local": "Жергілікті",

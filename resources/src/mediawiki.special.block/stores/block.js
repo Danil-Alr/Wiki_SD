@@ -1,7 +1,6 @@
 const { defineStore } = require( 'pinia' );
 const { computed, ComputedRef, ref, Ref, watch } = require( 'vue' );
 const api = new mw.Api();
-const util = require( '../util.js' );
 
 /**
  * Pinia store for the SpecialBlock application.
@@ -80,16 +79,8 @@ module.exports = exports = defineStore( 'block', () => {
 	 * These options are ultimately defined by [[MediaWiki:Ipbreason-dropdown]].
 	 *
 	 * @type {Ref<string>}
-	 * @todo Combine with `reasonOther` here within the store.
 	 */
-	const reason = ref( 'other' );
-	/**
-	 * The free-form text for the block summary.
-	 *
-	 * @type {Ref<string>}
-	 * @todo Combine with `reason` here within the store.
-	 */
-	const reasonOther = ref( mw.config.get( 'blockReasonOtherPreset' ) || '' );
+	const reason = ref( mw.config.get( 'blockReasonPreset' ) );
 	const details = mw.config.get( 'blockDetailsPreset' ) || [];
 	/**
 	 * Whether to block an IP or IP range from creating accounts.
@@ -136,13 +127,20 @@ module.exports = exports = defineStore( 'block', () => {
 	 * @type {Ref<boolean>}
 	 */
 	const hardBlock = ref( additionalDetails.includes( 'wpHardBlock' ) );
-	/*
+	/**
 	 * The removal reason, used in the remove-block confirmation dialog.
 	 * Note that the target and watchuser values in that form are shared with the main form.
 	 *
 	 * @type {Ref<string>}
 	 */
 	const removalReason = ref( '' );
+	/**
+	 * Whether the removal confirmation dialog is open.
+	 * This is set in the parent SpecialBlock component.
+	 *
+	 * @type {Ref<boolean>}
+	 */
+	const removalConfirmationOpen = ref( false );
 
 	// Other refs that don't have corresponding form fields.
 
@@ -166,6 +164,13 @@ module.exports = exports = defineStore( 'block', () => {
 	 * @type {Ref<boolean>}
 	 */
 	const formVisible = ref( false );
+	/**
+	 * Whether changes have been made to any form field.
+	 * This is set by the parent SpecialBlock component, and cleared by resetForm().
+	 *
+	 * @type {Ref<boolean>}
+	 */
+	const formDirty = ref( false );
 	/**
 	 * Whether the block was added successfully.
 	 *
@@ -260,6 +265,34 @@ module.exports = exports = defineStore( 'block', () => {
 		{ immediate: true }
 	);
 
+	/**
+	 * Update the URL path with the target user, and set the query string parameters:
+	 * - id: The block ID of the block to modify
+	 * - remove: Whether to remove the block (opens the dialog)
+	 */
+	watch(
+		computed( () => [ targetUser.value, blockId.value, removalConfirmationOpen.value ] ),
+		() => {
+			const params = new URLSearchParams( window.location.search );
+			if ( blockId.value ) {
+				params.set( 'id', blockId.value );
+			} else {
+				params.delete( 'id' );
+			}
+			if ( removalConfirmationOpen.value ) {
+				params.set( 'remove', '1' );
+			} else {
+				params.delete( 'remove' );
+			}
+			// Remove title= if present
+			params.delete( 'title' );
+			// Trim off the trailing slash and any target user from the page name.
+			const pageName = mw.config.get( 'wgPageName' ).replace( /\/(?:[^/]+)?$/, '' );
+			const newUrl = mw.util.getUrl( pageName + ( targetUser.value ? '/' + targetUser.value : '' ) );
+			window.history.replaceState( {}, '', `${ newUrl }?${ params }`.replace( /\?$/, '' ) );
+		}
+	);
+
 	// Hide the form and clear form-related refs when the target user changes.
 	watch( targetUser, resetFormInternal );
 
@@ -294,19 +327,7 @@ module.exports = exports = defineStore( 'block', () => {
 		namespaces.value = blockData.restrictions.namespaces || [];
 		expiry.value = blockData.expiry;
 		partialOptions.value = ( blockData.restrictions.actions || [] ).map( ( i ) => 'ipb-action-' + i );
-		// The reason is a single string that possibly starts with one of the predefined reasons,
-		// and can have an 'other' value separated by a colon.
-		// Here we replicate what's done in PHP in HTMLSelectAndOtherField at https://w.wiki/CPMs
-		reason.value = 'other';
-		reasonOther.value = blockData.reason;
-		for ( const opt of mw.config.get( 'blockReasonOptions' ) ) {
-			const possPrefix = opt.value + mw.msg( 'colon-separator' );
-			if ( reasonOther.value.startsWith( possPrefix ) ) {
-				reason.value = opt.value;
-				reasonOther.value = reasonOther.value.slice( possPrefix.length );
-				break;
-			}
-		}
+		reason.value = blockData.reason;
 		createAccount.value = blockData.nocreate;
 		disableEmail.value = blockData.noemail;
 		disableUTEdit.value = !blockData.allowusertalk;
@@ -339,8 +360,7 @@ module.exports = exports = defineStore( 'block', () => {
 		namespaces.value = [];
 		partialOptions.value = [];
 		expiry.value = '';
-		reason.value = 'other';
-		reasonOther.value = '';
+		reason.value = '';
 		createAccount.value = true;
 		disableEmail.value = false;
 		disableUTEdit.value = false;
@@ -364,6 +384,7 @@ module.exports = exports = defineStore( 'block', () => {
 		formErrors.value = [];
 		formSubmitted.value = false;
 		formVisible.value = false;
+		formDirty.value = false;
 		blockAdded.value = false;
 		blockRemoved.value = false;
 		promises.value.clear();
@@ -381,6 +402,7 @@ module.exports = exports = defineStore( 'block', () => {
 			formatversion: 2,
 			user: targetUser.value,
 			expiry: expiry.value,
+			reason: reason.value,
 			// Localize errors
 			errorformat: 'html',
 			uselang: mw.config.get( 'wgUserLanguage' ),
@@ -399,15 +421,6 @@ module.exports = exports = defineStore( 'block', () => {
 			} else {
 				params.newblock = 1;
 			}
-		}
-
-		// Reason selected concatenated with 'Other' field
-		if ( reason.value === 'other' ) {
-			params.reason = reasonOther.value;
-		} else {
-			params.reason = reason.value + (
-				reasonOther.value ? mw.msg( 'colon-separator' ) + reasonOther.value : ''
-			);
 		}
 
 		if ( type.value === 'partial' ) {
@@ -494,22 +507,15 @@ module.exports = exports = defineStore( 'block', () => {
 			return blockLogPromise;
 		}
 
-		let target = targetUser.value;
-		const isValidIpOrRange = mw.util.isIPAddress( target, true );
-		const isIpRange = isValidIpOrRange && !mw.util.isIPAddress( target, false );
-
-		// Sanitize IP ranges for block log queries.
-		if ( isIpRange ) {
-			target = util.sanitizeRange( target );
-		}
-
+		const target = targetUser.value;
 		const params = {
 			action: 'query',
 			format: 'json',
 			leprop: 'ids|title|type|user|timestamp|parsedcomment|details',
 			letitle: `User:${ target }`,
 			list: 'logevents',
-			formatversion: 2
+			formatversion: 2,
+			uselang: mw.config.get( 'wgUserLanguage' )
 		};
 
 		if ( blockLogType === 'suppress' ) {
@@ -527,7 +533,7 @@ module.exports = exports = defineStore( 'block', () => {
 		params.list = 'logevents|blocks';
 		params.letype = 'block';
 		params.bkprop = 'id|user|by|timestamp|expiry|reason|parsedreason|range|flags|restrictions';
-		if ( isValidIpOrRange ) {
+		if ( mw.util.isIPAddress( target, true ) ) {
 			params.bkip = target;
 		} else {
 			params.bkusers = target;
@@ -535,7 +541,7 @@ module.exports = exports = defineStore( 'block', () => {
 
 		const actualPromise = api.get( params );
 		actualPromise.then( ( data ) => {
-			alreadyBlocked.value = data.query.blocks.length > 0;
+			alreadyBlocked.value = isTargetAlreadyBlocked( target, data.query.blocks );
 			// form should be visible if target is not blocked
 			if ( !alreadyBlocked.value ) {
 				formVisible.value = true;
@@ -543,6 +549,39 @@ module.exports = exports = defineStore( 'block', () => {
 		} );
 		blockLogPromise = Promise.all( [ actualPromise ] );
 		return pushPromise( blockLogPromise );
+	}
+
+	/**
+	 * Check if a target is already blocked given a list of blocks.
+	 * If the target is an IP and there is a block on a range that includes
+	 * the target, it is not considered already blocked for the purposes
+	 * of these modules
+	 *
+	 * @param {string} target is expected to be sanitized
+	 * @param {Object[]} blocks
+	 * @return {boolean} true if target is the intended target of the block
+	 */
+	function isTargetAlreadyBlocked( target, blocks ) {
+		// T392049
+		if ( blocks.length === 0 ) {
+			return false;
+		}
+
+		const isIpOrRange = mw.util.isIPAddress( target, true );
+		if ( !isIpOrRange ) {
+			return true;
+		}
+
+		let blockFound = false;
+		blocks.forEach( ( block ) => {
+			if ( block.user === target ) {
+				blockFound = true;
+				return;
+
+			}
+		} );
+
+		return blockFound;
 	}
 
 	/**
@@ -571,6 +610,7 @@ module.exports = exports = defineStore( 'block', () => {
 		formErrors,
 		formSubmitted,
 		formVisible,
+		formDirty,
 		targetUser,
 		blockAdded,
 		blockRemoved,
@@ -582,7 +622,6 @@ module.exports = exports = defineStore( 'block', () => {
 		pages,
 		namespaces,
 		reason,
-		reasonOther,
 		createAccount,
 		disableEmail,
 		disableUTEdit,
@@ -595,6 +634,7 @@ module.exports = exports = defineStore( 'block', () => {
 		confirmationMessage,
 		confirmationNeeded,
 		removalReason,
+		removalConfirmationOpen,
 		loadFromData,
 		resetForm,
 		doBlock,

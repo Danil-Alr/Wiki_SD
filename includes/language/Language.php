@@ -62,13 +62,13 @@ use MediaWiki\Utils\MWTimestamp;
 use MediaWiki\Xml\XmlSelect;
 use NumberFormatter;
 use RuntimeException;
-use StringUtils;
 use UtfNormal\Validator as UtfNormalValidator;
 use Wikimedia\AtEase\AtEase;
 use Wikimedia\Bcp47Code\Bcp47Code;
 use Wikimedia\DebugInfo\DebugInfoTrait;
 use Wikimedia\Message\MessageParam;
 use Wikimedia\Message\MessageSpecifier;
+use Wikimedia\StringUtils\StringUtils;
 use Wikimedia\Timestamp\ConvertibleTimestamp;
 
 /**
@@ -518,7 +518,7 @@ class Language implements Bcp47Code {
 			return false;
 		} else {
 			// Check what is in i18n files
-			$aliases = $this->localisationCache->getItem( $this->mCode, 'namespaceGenderAliases' );
+			$aliases = (array)$this->localisationCache->getItem( $this->mCode, 'namespaceGenderAliases' );
 			return count( $aliases ) > 0;
 		}
 	}
@@ -4951,7 +4951,12 @@ class Language implements Bcp47Code {
 		$jsLcFormats = $this->localisationCache->getItem( $this->mCode, 'jsDateFormats' );
 		$phpLcFormats = $this->localisationCache->getItem( $this->mCode, 'dateFormats' );
 
-		$styles = $this->getDatePreferences() ?: [ $this->getDefaultDateFormat() ];
+		$styles = $this->getDatePreferences() ?: [];
+		$default = $this->getDefaultDateFormat();
+		// Always include the default style
+		if ( !in_array( $default, $styles, true ) ) {
+			$styles[] = $default;
+		}
 		$results = [];
 		foreach ( $styles as $style ) {
 			if ( $style === 'default' ) {

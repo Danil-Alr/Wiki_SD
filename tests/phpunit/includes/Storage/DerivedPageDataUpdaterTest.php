@@ -25,8 +25,10 @@ use MediaWiki\Page\Event\PageRevisionUpdatedEvent;
 use MediaWiki\Page\PageIdentity;
 use MediaWiki\Page\PageIdentityValue;
 use MediaWiki\Page\ParserOutputAccess;
+use MediaWiki\Page\WikiPage;
 use MediaWiki\Parser\ParserCacheFactory;
 use MediaWiki\Parser\ParserOptions;
+use MediaWiki\RecentChanges\RecentChange;
 use MediaWiki\Revision\MutableRevisionRecord;
 use MediaWiki\Revision\MutableRevisionSlots;
 use MediaWiki\Revision\RevisionRecord;
@@ -45,12 +47,10 @@ use MediaWikiIntegrationTestCase;
 use MockTitleTrait;
 use PHPUnit\Framework\Assert;
 use PHPUnit\Framework\MockObject\MockObject;
-use RecentChange;
 use Wikimedia\ObjectCache\BagOStuff;
 use Wikimedia\Rdbms\Platform\ISQLPlatform;
 use Wikimedia\TestingAccessWrapper;
 use Wikimedia\Timestamp\ConvertibleTimestamp;
-use WikiPage;
 
 /**
  * @group Database
@@ -876,7 +876,7 @@ class DerivedPageDataUpdaterTest extends MediaWikiIntegrationTestCase {
 		return $rev;
 	}
 
-	public function provideIsReusableFor() {
+	public static function provideIsReusableFor() {
 		$title = PageIdentityValue::localIdentity( 1234, NS_MAIN, __CLASS__ );
 
 		$user1 = new UserIdentityValue( 111, 'Alice' );
@@ -894,12 +894,12 @@ class DerivedPageDataUpdaterTest extends MediaWikiIntegrationTestCase {
 		$update2 = new RevisionSlotsUpdate();
 		$update2->modifyContent( SlotRecord::MAIN, $content2 );
 
-		$rev1 = $this->makeRevision( $title, $update1, $user1, 'rev1', 11 );
-		$rev1b = $this->makeRevision( $title, $update1b, $user1, 'rev1', 11 );
+		$rev1 = [ $title, $update1, $user1, 'rev1', 11 ];
+		$rev1b = [ $title, $update1b, $user1, 'rev1', 11 ];
 
-		$rev2 = $this->makeRevision( $title, $update2, $user1, 'rev2', 12 );
-		$rev2x = $this->makeRevision( $title, $update2, $user2, 'rev2', 12 );
-		$rev2y = $this->makeRevision( $title, $update2, $user1, 'rev2', 122 );
+		$rev2 = [ $title, $update2, $user1, 'rev2', 12 ];
+		$rev2x = [ $title, $update2, $user2, 'rev2', 12 ];
+		$rev2y = [ $title, $update2, $user1, 'rev2', 122 ];
 
 		yield 'any' => [
 			'$prepUser' => null,
@@ -1019,10 +1019,10 @@ class DerivedPageDataUpdaterTest extends MediaWikiIntegrationTestCase {
 	 */
 	public function testIsReusableFor(
 		?UserIdentity $prepUser,
-		?MutableRevisionRecord $prepRevision,
+		?array $prepRevision,
 		?RevisionSlotsUpdate $prepUpdate,
 		?UserIdentity $forUser,
-		?RevisionRecord $forRevision,
+		?array $forRevision,
 		?RevisionSlotsUpdate $forUpdate,
 		$forParent,
 		$isReusable
@@ -1034,7 +1034,10 @@ class DerivedPageDataUpdaterTest extends MediaWikiIntegrationTestCase {
 		}
 
 		if ( $prepRevision ) {
-			$updater->prepareUpdate( $prepRevision );
+			$updater->prepareUpdate( $this->makeRevision( ...$prepRevision ) );
+		}
+		if ( $forRevision ) {
+			$forRevision = $this->makeRevision( ...$forRevision );
 		}
 
 		$this->assertSame(
@@ -1291,7 +1294,7 @@ class DerivedPageDataUpdaterTest extends MediaWikiIntegrationTestCase {
 	/**
 	 * @covers \MediaWiki\Storage\DerivedPageDataUpdater::emitEvents()
 	 */
-	public function testDispatchPageUpdatedEvent() {
+	public function testDispatchPageRevisionUpdatedEvent() {
 		$page = $this->getPage( __METHOD__ );
 		$content = [ SlotRecord::MAIN => new WikitextContent( 'first [[main]]' ) ];
 		$rev = $this->createRevision( $page, 'first', $content );
@@ -1390,7 +1393,7 @@ class DerivedPageDataUpdaterTest extends MediaWikiIntegrationTestCase {
 	 * @covers \MediaWiki\Storage\DerivedPageDataUpdater::doUpdates()
 	 * @covers \MediaWiki\Storage\DerivedPageDataUpdater::maybeAddRecreateChangeTag
 	 */
-	public function testDoUpdatesTagsEditAsRecreatedWhenDeletedLogEntry() {
+	public function testDoUpdatesTagsEditAsRecreatedWhenDeletionLogEntry() {
 		$page = $this->getPage( __METHOD__ );
 		$title = $this->getTitle( __METHOD__ );
 
@@ -1400,7 +1403,6 @@ class DerivedPageDataUpdaterTest extends MediaWikiIntegrationTestCase {
 		$deleteLogEntry = new ManualLogEntry( 'delete', 'delete' );
 		$deleteLogEntry->setPerformer( $this->getTestUser()->getUser() );
 		$deleteLogEntry->setTarget( $title );
-		$deleteLogEntry->setDeleted( LogPage::DELETED_ACTION );
 		$logId = $deleteLogEntry->insert( $this->getDb() );
 		$deleteLogEntry->publish( $logId );
 
@@ -1426,7 +1428,6 @@ class DerivedPageDataUpdaterTest extends MediaWikiIntegrationTestCase {
 		$deleteLogEntry = new ManualLogEntry( 'delete', 'delete' );
 		$deleteLogEntry->setPerformer( $this->getTestUser()->getUser() );
 		$deleteLogEntry->setTarget( $title );
-		$deleteLogEntry->setDeleted( LogPage::DELETED_ACTION );
 		$logId = $deleteLogEntry->insert( $this->getDb() );
 		$deleteLogEntry->publish( $logId );
 
@@ -1440,7 +1441,7 @@ class DerivedPageDataUpdaterTest extends MediaWikiIntegrationTestCase {
 	 * @covers \MediaWiki\Storage\DerivedPageDataUpdater::doUpdates()
 	 * @covers \MediaWiki\Storage\DerivedPageDataUpdater::maybeAddRecreateChangeTag
 	 */
-	public function testDoUpdatesTagsEditAsRecreatedWhenDeletedLogEntryAndUndelete() {
+	public function testDoUpdatesDoesNotTagEditAsRecreatedWhenDeletionLogEntryAndUndelete() {
 		$page = $this->getPage( __METHOD__ );
 		$title = $this->getTitle( __METHOD__ );
 		$user = $this->getMutableTestUser()->getUser();
@@ -1459,7 +1460,6 @@ class DerivedPageDataUpdaterTest extends MediaWikiIntegrationTestCase {
 		$deleteLogEntry = new ManualLogEntry( 'delete', 'delete' );
 		$deleteLogEntry->setPerformer( $this->getTestUser()->getUser() );
 		$deleteLogEntry->setTarget( $title );
-		$deleteLogEntry->setDeleted( LogPage::DELETED_ACTION );
 		$logId = $deleteLogEntry->insert( $this->getDb() );
 		$deleteLogEntry->publish( $logId );
 		// undelete the page
@@ -1475,10 +1475,39 @@ class DerivedPageDataUpdaterTest extends MediaWikiIntegrationTestCase {
 	 * @covers \MediaWiki\Storage\DerivedPageDataUpdater::doUpdates()
 	 * @covers \MediaWiki\Storage\DerivedPageDataUpdater::maybeAddRecreateChangeTag
 	 */
-	public function testDoUpdatesDoesNotTagEditAsRecreatedWhenNoDeletedLogEntry() {
+	public function testDoUpdatesDoesNotTagEditAsRecreatedWhenNoDeletionLogEntry() {
 		$page = $this->getPage( __METHOD__ );
 
 		$content = [ SlotRecord::MAIN => new WikitextContent( 'rev ID ver #1: {{REVISIONID}}' ) ];
+		$rev = $this->createRevision( $page, 'first', $content );
+
+		$this->assertSame( [], $this->getServiceContainer()->getChangeTagsStore()->getTags(
+			$this->getDb(), null, $rev->getId() ) );
+	}
+
+	/**
+	 * See T385792
+	 *
+	 * @covers \MediaWiki\Storage\DerivedPageDataUpdater::doUpdates()
+	 * @covers \MediaWiki\Storage\DerivedPageDataUpdater::maybeAddRecreateChangeTag
+	 */
+	public function testDoUpdatesDoesNotTagEditAsRecreatedWhenDeletionLogEntryActionHidden() {
+		$page = $this->getPage( __METHOD__ );
+		$title = $this->getTitle( __METHOD__ );
+
+		$content = [ SlotRecord::MAIN => new WikitextContent( 'rev ID ver #1: {{REVISIONID}}' ) ];
+
+		// create a deletion log entry
+		$deleteLogEntry = new ManualLogEntry( 'delete', 'delete' );
+		$deleteLogEntry->setPerformer( $this->getTestUser()->getUser() );
+		$deleteLogEntry->setTarget( $title );
+
+		// hide the target of the deletion log entry
+		$deleteLogEntry->setDeleted( LogPage::DELETED_ACTION );
+
+		$logId = $deleteLogEntry->insert( $this->getDb() );
+		$deleteLogEntry->publish( $logId );
+
 		$rev = $this->createRevision( $page, 'first', $content );
 
 		$this->assertSame( [], $this->getServiceContainer()->getChangeTagsStore()->getTags(

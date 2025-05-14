@@ -5,10 +5,14 @@
  * @todo Split tests into providers and test methods
  */
 
+use MediaWiki\FileRepo\File\ArchivedFile;
+use MediaWiki\FileRepo\File\File;
+use MediaWiki\FileRepo\File\LocalFile;
+use MediaWiki\FileRepo\File\OldLocalFile;
+use MediaWiki\FileRepo\LocalRepo;
 use MediaWiki\MainConfigNames;
 use MediaWiki\MediaWikiServices;
 use MediaWiki\Page\Event\PageRevisionUpdatedEvent;
-use MediaWiki\Permissions\Authority;
 use MediaWiki\Tests\ExpectCallbackTrait;
 use MediaWiki\Tests\recentchanges\ChangeTrackingUpdateSpyTrait;
 use MediaWiki\Tests\Search\SearchUpdateSpyTrait;
@@ -17,9 +21,8 @@ use MediaWiki\Title\Title;
 use MediaWiki\User\UserIdentity;
 use MediaWiki\WikiMap\WikiMap;
 use PHPUnit\Framework\Assert;
+use Wikimedia\ArrayUtils\ArrayUtils;
 use Wikimedia\FileBackend\FSFileBackend;
-use Wikimedia\ObjectCache\HashBagOStuff;
-use Wikimedia\ObjectCache\WANObjectCache;
 use Wikimedia\TestingAccessWrapper;
 
 /**
@@ -50,7 +53,7 @@ class LocalFileTest extends MediaWikiIntegrationTestCase {
 	}
 
 	/**
-	 * @covers \File::getHashPath
+	 * @covers \MediaWiki\FileRepo\File\File::getHashPath
 	 * @dataProvider provideGetHashPath
 	 * @param string $expected
 	 * @param bool $capitalLinks
@@ -71,7 +74,7 @@ class LocalFileTest extends MediaWikiIntegrationTestCase {
 	}
 
 	/**
-	 * @covers \File::getRel
+	 * @covers \MediaWiki\FileRepo\File\File::getRel
 	 * @dataProvider provideGetRel
 	 * @param string $expected
 	 * @param bool $capitalLinks
@@ -93,7 +96,7 @@ class LocalFileTest extends MediaWikiIntegrationTestCase {
 	}
 
 	/**
-	 * @covers \File::getUrlRel
+	 * @covers \MediaWiki\FileRepo\File\File::getUrlRel
 	 * @dataProvider provideGetUrlRel
 	 * @param string $expected
 	 * @param bool $capitalLinks
@@ -115,7 +118,7 @@ class LocalFileTest extends MediaWikiIntegrationTestCase {
 	}
 
 	/**
-	 * @covers \File::getArchivePath
+	 * @covers \MediaWiki\FileRepo\File\File::getArchivePath
 	 * @dataProvider provideGetArchivePath
 	 * @param string $expected
 	 * @param bool $capitalLinks
@@ -144,7 +147,7 @@ class LocalFileTest extends MediaWikiIntegrationTestCase {
 	}
 
 	/**
-	 * @covers \File::getThumbPath
+	 * @covers \MediaWiki\FileRepo\File\File::getThumbPath
 	 * @dataProvider provideGetThumbPath
 	 * @param string $expected
 	 * @param bool $capitalLinks
@@ -173,7 +176,7 @@ class LocalFileTest extends MediaWikiIntegrationTestCase {
 	}
 
 	/**
-	 * @covers \File::getArchiveUrl
+	 * @covers \MediaWiki\FileRepo\File\File::getArchiveUrl
 	 * @dataProvider provideGetArchiveUrl
 	 * @param string $expected
 	 * @param bool $capitalLinks
@@ -197,7 +200,7 @@ class LocalFileTest extends MediaWikiIntegrationTestCase {
 	}
 
 	/**
-	 * @covers \File::getThumbUrl
+	 * @covers \MediaWiki\FileRepo\File\File::getThumbUrl
 	 * @dataProvider provideGetThumbUrl
 	 * @param string $expected
 	 * @param bool $capitalLinks
@@ -221,7 +224,7 @@ class LocalFileTest extends MediaWikiIntegrationTestCase {
 	}
 
 	/**
-	 * @covers \File::getArchiveVirtualUrl
+	 * @covers \MediaWiki\FileRepo\File\File::getArchiveVirtualUrl
 	 * @dataProvider provideGetArchiveVirtualUrl
 	 * @param string $expected
 	 * @param bool $capitalLinks
@@ -247,7 +250,7 @@ class LocalFileTest extends MediaWikiIntegrationTestCase {
 	}
 
 	/**
-	 * @covers \File::getThumbVirtualUrl
+	 * @covers \MediaWiki\FileRepo\File\File::getThumbVirtualUrl
 	 * @dataProvider provideGetThumbVirtualUrl
 	 * @param string $expected
 	 * @param bool $capitalLinks
@@ -271,7 +274,7 @@ class LocalFileTest extends MediaWikiIntegrationTestCase {
 	}
 
 	/**
-	 * @covers \File::getUrl
+	 * @covers \MediaWiki\FileRepo\File\File::getUrl
 	 * @dataProvider provideGetUrl
 	 * @param string $expected
 	 * @param bool $capitalLinks
@@ -292,48 +295,46 @@ class LocalFileTest extends MediaWikiIntegrationTestCase {
 	}
 
 	/**
-	 * @covers \LocalFile::getUploader
+	 * @covers \MediaWiki\FileRepo\File\LocalFile::getUploader
 	 */
 	public function testGetUploaderForNonExistingFile() {
 		$file = ( new LocalRepo( self::getDefaultInfo() ) )->newFile( 'test!' );
 		$this->assertNull( $file->getUploader() );
 	}
 
-	public function providePermissionChecks() {
-		$capablePerformer = $this->mockRegisteredAuthorityWithPermissions( [ 'deletedhistory', 'deletedtext' ] );
-		$incapablePerformer = $this->mockRegisteredAuthorityWithoutPermissions( [ 'deletedhistory', 'deletedtext' ] );
+	public static function providePermissionChecks() {
 		yield 'Deleted, RAW' => [
-			'performer' => $incapablePerformer,
+			'performerMock' => 'without',
 			'audience' => File::RAW,
 			'deleted' => File::DELETED_USER | File::DELETED_COMMENT,
 			'expected' => true,
 		];
 		yield 'No permission, not deleted' => [
-			'performer' => $incapablePerformer,
+			'performerMock' => 'without',
 			'audience' => File::FOR_THIS_USER,
 			'deleted' => 0,
 			'expected' => true,
 		];
 		yield 'No permission, deleted' => [
-			'performer' => $incapablePerformer,
+			'performerMock' => 'without',
 			'audience' => File::FOR_THIS_USER,
 			'deleted' => File::DELETED_USER | File::DELETED_COMMENT,
 			'expected' => false,
 		];
 		yield 'Not deleted, public' => [
-			'performer' => $capablePerformer,
+			'performerMock' => 'with',
 			'audience' => File::FOR_PUBLIC,
 			'deleted' => 0,
 			'expected' => true,
 		];
 		yield 'Deleted, public' => [
-			'performer' => $capablePerformer,
+			'performerMock' => 'with',
 			'audience' => File::FOR_PUBLIC,
 			'deleted' => File::DELETED_USER | File::DELETED_COMMENT,
 			'expected' => false,
 		];
 		yield 'With permission, deleted' => [
-			'performer' => $capablePerformer,
+			'performerMock' => 'with',
 			'audience' => File::FOR_THIS_USER,
 			'deleted' => File::DELETED_USER | File::DELETED_COMMENT,
 			'expected' => true,
@@ -413,14 +414,17 @@ class LocalFileTest extends MediaWikiIntegrationTestCase {
 
 	/**
 	 * @dataProvider providePermissionChecks
-	 * @covers \LocalFile::getUploader
+	 * @covers \MediaWiki\FileRepo\File\LocalFile::getUploader
 	 */
 	public function testGetUploader(
-		Authority $performer,
+		string $performerMock,
 		int $audience,
 		int $deleted,
 		bool $expected
 	) {
+		$performer = $performerMock === 'with'
+			? $this->mockRegisteredAuthorityWithPermissions( [ 'deletedhistory', 'deletedtext' ] )
+			: $this->mockRegisteredAuthorityWithoutPermissions( [ 'deletedhistory', 'deletedtext' ] );
 		$file = $this->getOldLocalFileWithDeletion( $performer->getUser(), $deleted );
 		if ( $expected ) {
 			$this->assertTrue( $performer->getUser()->equals( $file->getUploader( $audience, $performer ) ) );
@@ -431,14 +435,17 @@ class LocalFileTest extends MediaWikiIntegrationTestCase {
 
 	/**
 	 * @dataProvider providePermissionChecks
-	 * @covers \ArchivedFile::getDescription
+	 * @covers \MediaWiki\FileRepo\File\ArchivedFile::getDescription
 	 */
 	public function testGetDescription(
-		Authority $performer,
+		string $performerMock,
 		int $audience,
 		int $deleted,
 		bool $expected
 	) {
+		$performer = $performerMock === 'with'
+			? $this->mockRegisteredAuthorityWithPermissions( [ 'deletedhistory', 'deletedtext' ] )
+			: $this->mockRegisteredAuthorityWithoutPermissions( [ 'deletedhistory', 'deletedtext' ] );
 		$file = $this->getArchivedFileWithDeletion( $performer->getUser(), $deleted );
 		if ( $expected ) {
 			$this->assertSame( 'comment', $file->getDescription( $audience, $performer ) );
@@ -449,14 +456,17 @@ class LocalFileTest extends MediaWikiIntegrationTestCase {
 
 	/**
 	 * @dataProvider providePermissionChecks
-	 * @covers \ArchivedFile::getUploader
+	 * @covers \MediaWiki\FileRepo\File\ArchivedFile::getUploader
 	 */
 	public function testArchivedGetUploader(
-		Authority $performer,
+		string $performerMock,
 		int $audience,
 		int $deleted,
 		bool $expected
 	) {
+		$performer = $performerMock === 'with'
+			? $this->mockRegisteredAuthorityWithPermissions( [ 'deletedhistory', 'deletedtext' ] )
+			: $this->mockRegisteredAuthorityWithoutPermissions( [ 'deletedhistory', 'deletedtext' ] );
 		$file = $this->getArchivedFileWithDeletion( $performer->getUser(), $deleted );
 		if ( $expected ) {
 			$this->assertTrue( $performer->getUser()->equals( $file->getUploader( $audience, $performer ) ) );
@@ -467,14 +477,17 @@ class LocalFileTest extends MediaWikiIntegrationTestCase {
 
 	/**
 	 * @dataProvider providePermissionChecks
-	 * @covers \LocalFile::getDescription
+	 * @covers \MediaWiki\FileRepo\File\LocalFile::getDescription
 	 */
 	public function testArchivedGetDescription(
-		Authority $performer,
+		string $performerMock,
 		int $audience,
 		int $deleted,
 		bool $expected
 	) {
+		$performer = $performerMock === 'with'
+			? $this->mockRegisteredAuthorityWithPermissions( [ 'deletedhistory', 'deletedtext' ] )
+			: $this->mockRegisteredAuthorityWithoutPermissions( [ 'deletedhistory', 'deletedtext' ] );
 		$file = $this->getOldLocalFileWithDeletion( $performer->getUser(), $deleted );
 		if ( $expected ) {
 			$this->assertSame( 'comment', $file->getDescription( $audience, $performer ) );
@@ -484,7 +497,7 @@ class LocalFileTest extends MediaWikiIntegrationTestCase {
 	}
 
 	/**
-	 * @covers \File::getDescriptionShortUrl
+	 * @covers \MediaWiki\FileRepo\File\File::getDescriptionShortUrl
 	 */
 	public function testDescriptionShortUrlForNonExistingFile() {
 		$file = ( new LocalRepo( self::getDefaultInfo() ) )->newFile( 'test!' );
@@ -492,7 +505,7 @@ class LocalFileTest extends MediaWikiIntegrationTestCase {
 	}
 
 	/**
-	 * @covers \LocalFile::getDescriptionText
+	 * @covers \MediaWiki\FileRepo\File\LocalFile::getDescriptionText
 	 */
 	public function testDescriptionText_NonExisting() {
 		$file = ( new LocalRepo( self::getDefaultInfo() ) )->newFile( 'test!' );
@@ -500,7 +513,7 @@ class LocalFileTest extends MediaWikiIntegrationTestCase {
 	}
 
 	/**
-	 * @covers \LocalFile::getDescriptionText
+	 * @covers \MediaWiki\FileRepo\File\LocalFile::getDescriptionText
 	 */
 	public function testDescriptionText_Existing() {
 		$this->assertTrue( $this->editPage(
@@ -547,8 +560,8 @@ class LocalFileTest extends MediaWikiIntegrationTestCase {
 	 * Test loadFromDB() and loadFromCache() and helpers
 	 *
 	 * @dataProvider provideLoadFromDBAndCache
-	 * @covers \File
-	 * @covers \LocalFile
+	 * @covers \MediaWiki\FileRepo\File\File
+	 * @covers \MediaWiki\FileRepo\File\LocalFile
 	 * @param string $meta
 	 * @param array $blobs Metadata blob values
 	 * @param int|false $largeItemSize The size of the "large" metadata item,
@@ -556,15 +569,6 @@ class LocalFileTest extends MediaWikiIntegrationTestCase {
 	 */
 	public function testLoadFromDBAndCache( $meta, $blobs, $largeItemSize ) {
 		$services = $this->getServiceContainer();
-
-		$cache = new HashBagOStuff;
-		$this->setService(
-			'MainWANObjectCache',
-			new WANObjectCache( [
-				'cache' => $cache
-			] )
-		);
-
 		$dbw = $this->getDb();
 		$norm = $services->getActorNormalization();
 		$user = $this->getTestSysop()->getUserIdentity();
@@ -709,7 +713,7 @@ class LocalFileTest extends MediaWikiIntegrationTestCase {
 	/**
 	 * Test the legacy function LocalFile::getMetadata()
 	 * @dataProvider provideLegacyMetadataRoundTrip
-	 * @covers \LocalFile
+	 * @covers \MediaWiki\FileRepo\File\LocalFile
 	 */
 	public function testLegacyMetadataRoundTrip( $meta ) {
 		$file = new class( $meta ) extends LocalFile {
@@ -819,7 +823,7 @@ class LocalFileTest extends MediaWikiIntegrationTestCase {
 	 * Test recordUpload3() and confirm that file properties are reflected back
 	 * after loading the new file from the DB.
 	 *
-	 * @covers \LocalFile
+	 * @covers \MediaWiki\FileRepo\File\LocalFile
 	 * @dataProvider provideRecordUpload3
 	 * @param array $props File properties
 	 * @param array $conf LocalRepo configuration overrides
@@ -859,7 +863,7 @@ class LocalFileTest extends MediaWikiIntegrationTestCase {
 	}
 
 	/**
-	 * @covers \LocalFile
+	 * @covers \MediaWiki\FileRepo\File\LocalFile
 	 */
 	public function testUpload() {
 		$repo = $this->getLocalRepoForUpload();
@@ -893,7 +897,7 @@ class LocalFileTest extends MediaWikiIntegrationTestCase {
 	}
 
 	/**
-	 * @covers \LocalFile
+	 * @covers \MediaWiki\FileRepo\File\LocalFile
 	 */
 	public function testUpload_updatePropagation() {
 		// Clear some extension hook handlers that may interfere with mock object expectations.
@@ -940,7 +944,7 @@ class LocalFileTest extends MediaWikiIntegrationTestCase {
 	}
 
 	/**
-	 * @covers \LocalFile
+	 * @covers \MediaWiki\FileRepo\File\LocalFile
 	 */
 	public function testUpload_eventEmission() {
 		$repo = $this->getLocalRepoForUpload();
@@ -987,7 +991,7 @@ class LocalFileTest extends MediaWikiIntegrationTestCase {
 	}
 
 	/**
-	 * @covers \LocalFile
+	 * @covers \MediaWiki\FileRepo\File\LocalFile
 	 */
 	public function testReUpload_eventEmission() {
 		// initial upload
@@ -1073,8 +1077,8 @@ class LocalFileTest extends MediaWikiIntegrationTestCase {
 	/**
 	 * Test reserializeMetadata() via maybeUpgradeRow()
 	 *
-	 * @covers \LocalFile::maybeUpgradeRow
-	 * @covers \LocalFile::reserializeMetadata
+	 * @covers \MediaWiki\FileRepo\File\LocalFile::maybeUpgradeRow
+	 * @covers \MediaWiki\FileRepo\File\LocalFile::reserializeMetadata
 	 * @dataProvider provideReserializeMetadata
 	 */
 	public function testReserializeMetadata( $input, $expected ) {
@@ -1137,8 +1141,8 @@ class LocalFileTest extends MediaWikiIntegrationTestCase {
 	/**
 	 * Test upgradeRow() via maybeUpgradeRow()
 	 *
-	 * @covers \LocalFile::maybeUpgradeRow
-	 * @covers \LocalFile::upgradeRow
+	 * @covers \MediaWiki\FileRepo\File\LocalFile::maybeUpgradeRow
+	 * @covers \MediaWiki\FileRepo\File\LocalFile::upgradeRow
 	 */
 	public function testUpgradeRow() {
 		$repo = new LocalRepo( [

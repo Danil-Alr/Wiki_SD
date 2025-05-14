@@ -2,7 +2,7 @@
     "$schema": "http://cyclonedx.org/schema/bom-1.6.schema.json",
     "bomFormat": "CycloneDX",
     "specVersion": "1.6",
-    "serialNumber": "urn:uuid:2d3c408e-f84b-4c39-aca6-1a6705f8b41e",
+    "serialNumber": "urn:uuid:6e336a2e-60ad-4b7c-b1dc-8e81a03a831c",
     "version": 1,
     "components": [
         {
@@ -32,7 +32,7 @@
         {
             "type": "library",
             "name": "codex",
-            "version": "1.22.0",
+            "version": "2.0.0-rc.1",
             "licenses": [
                 {
                     "license": {
@@ -40,7 +40,7 @@
                     }
                 }
             ],
-            "purl": "pkg:npm/@wikimedia/codex@1.22.0",
+            "purl": "pkg:npm/@wikimedia/codex@2.0.0-rc.1",
             "authors": [
                 {
                     "name": "Design System team"
@@ -59,7 +59,7 @@
         {
             "type": "library",
             "name": "codex-design-tokens",
-            "version": "1.22.0",
+            "version": "2.0.0-rc.1",
             "licenses": [
                 {
                     "license": {
@@ -67,7 +67,7 @@
                     }
                 }
             ],
-            "purl": "pkg:npm/@wikimedia/codex-design-tokens@1.22.0",
+            "purl": "pkg:npm/@wikimedia/codex-design-tokens@2.0.0-rc.1",
             "authors": [
                 {
                     "name": "Design System team"
@@ -86,7 +86,7 @@
         {
             "type": "library",
             "name": "codex-icons",
-            "version": "1.21.1",
+            "version": "2.0.0-rc.1",
             "licenses": [
                 {
                     "license": {
@@ -94,7 +94,7 @@
                     }
                 }
             ],
-            "purl": "pkg:npm/@wikimedia/codex-icons@1.22.0",
+            "purl": "pkg:npm/@wikimedia/codex-icons@2.0.0-rc.1",
             "authors": [
                 {
                     "name": "Design System team"
@@ -519,7 +519,7 @@
         {
             "type": "library",
             "name": "sinonjs",
-            "version": "1.17.7",
+            "version": "18.0.1",
             "licenses": [
                 {
                     "license": {
@@ -607,6 +607,54 @@
                 }
             ],
             "purl": "pkg:npm/vue@3.5.13",
+            "authors": [
+                {
+                    "name": "Yuxi (Evan) You"
+                }
+            ],
+            "externalReferences": [
+                {
+                    "url": "https://vuejs.org/",
+                    "type": "website"
+                }
+            ]
+        },
+        {
+            "type": "library",
+            "name": "vue-test-utils",
+            "version": "2.4.6",
+            "licenses": [
+                {
+                    "license": {
+                        "id": "MIT"
+                    }
+                }
+            ],
+            "purl": "pkg:npm/@vue/test-utils@2.4.6",
+            "authors": [
+                {
+                    "name": "Lachlan Miller"
+                }
+            ],
+            "externalReferences": [
+                {
+                    "url": "https://test-utils.vuejs.org/",
+                    "type": "website"
+                }
+            ]
+        },
+        {
+            "type": "library",
+            "name": "vue-compiler-dom",
+            "version": "3.5.13",
+            "licenses": [
+                {
+                    "license": {
+                        "id": "MIT"
+                    }
+                }
+            ],
+            "purl": "pkg:npm/@vue/compiler-dom@3.5.13",
             "authors": [
                 {
                     "name": "Yuxi (Evan) You"

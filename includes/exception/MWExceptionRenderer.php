@@ -21,7 +21,6 @@
 namespace MediaWiki\Exception;
 
 use Exception;
-use HttpStatus;
 use LocalisationCache;
 use MediaWiki\Context\RequestContext;
 use MediaWiki\Html\Html;
@@ -32,6 +31,7 @@ use MediaWiki\Message\Message;
 use MediaWiki\Request\WebRequest;
 use Throwable;
 use Wikimedia\AtEase;
+use Wikimedia\Http\HttpStatus;
 use Wikimedia\Message\MessageParam;
 use Wikimedia\Message\MessageSpecifier;
 use Wikimedia\Rdbms\DBConnectionError;
@@ -145,6 +145,7 @@ class MWExceptionRenderer {
 				$message = MWExceptionHandler::getPublicLogMessage( $e );
 			}
 			print nl2br( htmlspecialchars( $message ) ) . "\n";
+			print '<meta name="color-scheme" content="light dark">';
 			self::header( "Content-Length: " . ob_get_length() );
 			ob_end_flush();
 		}

@@ -70,6 +70,7 @@ class XmlTest extends MediaWikiIntegrationTestCase {
 	}
 
 	public function testElementInputCanHaveAValueOfZero() {
+		$this->hideDeprecated( Xml::class . '::input' );
 		$this->assertEquals(
 			'<input name="name" value="0" />',
 			Xml::input( 'name', false, 0 ),
@@ -241,6 +242,7 @@ class XmlTest extends MediaWikiIntegrationTestCase {
 	}
 
 	public function testTextareaNoContent() {
+		$this->hideDeprecated( Xml::class . '::textarea' );
 		$this->assertEquals(
 			'<textarea name="name" id="name" cols="40" rows="5"></textarea>',
 			Xml::textarea( 'name', '' ),
@@ -249,6 +251,7 @@ class XmlTest extends MediaWikiIntegrationTestCase {
 	}
 
 	public function testTextareaAttribs() {
+		$this->hideDeprecated( Xml::class . '::textarea' );
 		$this->assertEquals(
 			'<textarea name="name" id="name" cols="20" rows="10">&lt;txt&gt;</textarea>',
 			Xml::textarea( 'name', '<txt>', 20, 10 ),

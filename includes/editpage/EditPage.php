@@ -124,6 +124,7 @@ use Wikimedia\ParamValidator\TypeDef\ExpiryDef;
 use Wikimedia\Rdbms\IConnectionProvider;
 use Wikimedia\Rdbms\IDBAccessObject;
 use Wikimedia\Rdbms\SelectQueryBuilder;
+use Wikimedia\Timestamp\ConvertibleTimestamp;
 
 /**
  * The HTML user interface for page editing.
@@ -206,7 +207,7 @@ class EditPage implements IEditObject {
 	 * @deprecated since 1.38 for public usage; no replacement
 	 * @var string
 	 */
-	public $action = 'submit';
+	private $action = 'submit';
 
 	/** @var bool Whether an edit conflict needs to be resolved. Detected based on whether
 	 * $editRevId is different than the latest revision. When a conflict has successfully
@@ -326,8 +327,11 @@ class EditPage implements IEditObject {
 	 */
 	public $textbox1 = '';
 
-	/** @var string */
-	public $textbox2 = '';
+	/**
+	 * @deprecated since 1.44
+	 * @var string
+	 */
+	private $textbox2 = '';
 
 	/** @var string */
 	public $summary = '';
@@ -547,8 +551,8 @@ class EditPage implements IEditObject {
 			->getBlockErrorFormatter( $this->context );
 		$this->authManager = $services->getAuthManager();
 
-		// XXX: Restore this deprecation as soon as TwoColConflict is fixed (T305028)
-		// $this->deprecatePublicProperty( 'textbox2', '1.38', __CLASS__ );
+		$this->deprecatePublicProperty( 'textbox2', '1.44', __CLASS__ );
+		$this->deprecatePublicProperty( 'action', '1.38', __CLASS__ );
 	}
 
 	/**
@@ -809,6 +813,27 @@ class EditPage implements IEditObject {
 			return Status::newGood();
 		}
 		$user = $this->context->getUser();
+
+		// Log out any user using an expired temporary account, so that we can give them a new temporary account.
+		// As described in T389485, we need to do this because the maintenance script to expire temporary accounts
+		// may fail to run or not be configured to run.
+		if ( $user->isTemp() ) {
+			$expiryAfterDays = $this->tempUserCreator->getExpireAfterDays();
+			if ( $expiryAfterDays ) {
+				$expirationCutoff = (int)ConvertibleTimestamp::now( TS_UNIX ) - ( 86_400 * $expiryAfterDays );
+
+				// If the user was created before the expiration cutoff, then log them out. If no registration is
+				// set then do nothing, as if registration date system is broken it would cause a new temporary account
+				// for each edit.
+				if (
+					$user->getRegistration() &&
+					ConvertibleTimestamp::convert( TS_UNIX, $user->getRegistration() ) < $expirationCutoff
+				) {
+					$user->logout();
+				}
+			}
+		}
+
 		if ( $this->tempUserCreator->shouldAutoCreate( $user, 'edit' ) ) {
 			if ( $doAcquire ) {
 				$name = $this->tempUserCreator->acquireAndStashName(
@@ -831,7 +856,7 @@ class EditPage implements IEditObject {
 	/**
 	 * If automatic user creation is enabled, create the user.
 	 *
-	 * This is a helper for internalAttemptSavePrivate().
+	 * This is a helper for internalAttemptSave().
 	 *
 	 * If the edit is a null edit, the user will not be created.
 	 */
@@ -1798,7 +1823,7 @@ class EditPage implements IEditObject {
 
 	/**
 	 * Attempt submission
-	 * @param array|false &$resultDetails See docs for $result in internalAttemptSavePrivate @phan-output-reference
+	 * @param array|false &$resultDetails See docs for $result in internalAttemptSave @phan-output-reference
 	 * @throws UserBlockedError|ReadOnlyError|ThrottledError|PermissionsError
 	 * @return Status
 	 */
@@ -1811,7 +1836,7 @@ class EditPage implements IEditObject {
 		$markAsMinor = $this->minoredit && !$this->isNew
 			&& $this->getAuthority()->isAllowed( 'minoredit' );
 
-		$status = $this->internalAttemptSavePrivate( $resultDetails, $markAsBot, $markAsMinor );
+		$status = $this->internalAttemptSave( $resultDetails, $markAsBot, $markAsMinor );
 
 		$this->getHookRunner()->onEditPage__attemptSave_after( $this, $status, $resultDetails );
 
@@ -1842,7 +1867,7 @@ class EditPage implements IEditObject {
 		$statusValue = is_int( $status->value ) ? $status->value : 0;
 
 		/**
-		 * @todo FIXME: once the interface for internalAttemptSavePrivate() is made
+		 * @todo FIXME: once the interface for internalAttemptSave() is made
 		 *   nicer, this should use the message in $status
 		 */
 		if ( $statusValue === self::AS_SUCCESS_UPDATE
@@ -2040,21 +2065,6 @@ class EditPage implements IEditObject {
 	}
 
 	/**
-	 * Deprecated public access to attempting save, see documentation on
-	 * internalAttemptSavePrivate()
-	 *
-	 * @deprecated since 1.43
-	 * @param array &$result
-	 * @param bool $markAsBot
-	 * @param bool $markAsMinor
-	 * @return Status
-	 */
-	public function internalAttemptSave( &$result, $markAsBot = false, $markAsMinor = false ) {
-		wfDeprecated( __METHOD__, '1.43' );
-		return $this->internalAttemptSavePrivate( $result, $markAsBot, $markAsMinor );
-	}
-
-	/**
 	 * Attempt submission (no UI)
 	 *
 	 * @param array &$result Array to add statuses to, currently with the
@@ -2080,7 +2090,7 @@ class EditPage implements IEditObject {
 	 *   AS_BLOCKED_PAGE_FOR_USER. All that stuff needs to be cleaned up some
 	 * time.
 	 */
-	private function internalAttemptSavePrivate( &$result, $markAsBot = false, $markAsMinor = false ) {
+	private function internalAttemptSave( &$result, $markAsBot = false, $markAsMinor = false ) {
 		// If an attempt to acquire a temporary name failed, don't attempt to do anything else.
 		if ( $this->unableToAcquireTempName ) {
 			$status = Status::newFatal( 'temp-user-unable-to-acquire' );
@@ -2617,7 +2627,7 @@ class EditPage implements IEditObject {
 
 	/**
 	 * Apply the specific updates needed for the EditPage fields based on which constraint
-	 * failed, rather than interspersing this logic throughout internalAttemptSavePrivate at
+	 * failed, rather than interspersing this logic throughout internalAttemptSave at
 	 * each of the points the constraints are checked. Eventually, this will act on the
 	 * result from the backend.
 	 */

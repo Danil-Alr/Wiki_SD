@@ -20,7 +20,6 @@
 
 namespace MediaWiki\Specials;
 
-use HtmlArmor;
 use MediaWiki\Block\AnonIpBlockTarget;
 use MediaWiki\Block\BlockActionInfo;
 use MediaWiki\Block\BlockPermissionCheckerFactory;
@@ -65,6 +64,7 @@ use OOUI\FieldLayout;
 use OOUI\HtmlSnippet;
 use OOUI\LabelWidget;
 use OOUI\Widget;
+use Wikimedia\HtmlArmor\HtmlArmor;
 use Wikimedia\Message\MessageSpecifier;
 
 /**
@@ -164,6 +164,7 @@ class SpecialBlock extends FormSpecialPage {
 			$authority = $this->getAuthority();
 			$this->codexFormData[ 'blockShowSuppressLog' ] = $authority->isAllowed( 'suppressionlog' );
 			$this->codexFormData[ 'blockCanDeleteLogEntry' ] = $authority->isAllowed( 'deletelogentry' );
+			$this->codexFormData[ 'blockCanEditInterface' ] = $authority->isAllowed( 'editinterface' );
 			$this->getOutput()->addJsConfigVars( $this->codexFormData );
 		}
 	}
@@ -242,8 +243,17 @@ class SpecialBlock extends FormSpecialPage {
 				$request->getRawVal( 'wpEditingRestriction' ) === 'partial' ?
 				'partial' :
 				'sitewide';
-			$this->codexFormData[ 'blockReasonPreset' ] = $request->getVal( 'wpReason' );
-			$this->codexFormData[ 'blockReasonOtherPreset' ] = $request->getVal( 'wpReason-other' );
+
+			$reasonPreset = $request->getVal( 'wpReason' );
+			$reasonOtherPreset = $request->getVal( 'wpReason-other' );
+			if ( $reasonPreset && $reasonOtherPreset ) {
+				$this->codexFormData[ 'blockReasonPreset' ] = $reasonPreset .
+					$this->msg( 'colon-separator' )->text() . $reasonOtherPreset;
+			} else {
+				$this->codexFormData[ 'blockReasonPreset' ] =
+					$reasonPreset ?: $reasonOtherPreset ?: '';
+			}
+
 			$this->codexFormData[ 'blockRemovalReasonPreset' ] = $request->getVal( 'wpRemovalReason' );
 			$blockAdditionalDetailsPreset = $blockDetailsPreset = [];
 
@@ -294,7 +304,7 @@ class SpecialBlock extends FormSpecialPage {
 		$msg = $this->alreadyBlocked ? 'ipb-change-block' : 'ipbsubmit';
 		$form->setSubmitTextMsg( $msg );
 
-		$this->addHelpLink( 'Help:Blocking users' );
+		$this->addHelpLink( $this->useCodex ? 'Help:Manage blocks' : 'Help:Blocking users' );
 
 		// Don't need to do anything if the form has been posted, or if there were no pre-errors.
 		if ( $this->getRequest()->wasPosted() || !$this->preErrors ) {
@@ -527,7 +537,7 @@ class SpecialBlock extends FormSpecialPage {
 
 		if ( $this->useCodex ) {
 			$blockReasonOptions = Html::listDropdownOptionsCodex(
-				Html::listDropdownOptions( $this->msg( 'ipbreason-dropdown' )->plain(),
+				Html::listDropdownOptions( $this->msg( 'ipbreason-dropdown' )->inContentLanguage()->plain(),
 					[ 'other' => $this->msg( 'htmlform-selectorother-other' )->text() ]
 			) );
 			$this->codexFormData[ 'blockReasonOptions' ] = $blockReasonOptions;
@@ -603,9 +613,7 @@ class SpecialBlock extends FormSpecialPage {
 		if ( $this->useCodex ) {
 			$default = (string)$this->target;
 			$a['Target']['default'] = $default;
-			if ( $default ) {
-				$a['Target']['disabled'] = true;
-			}
+			$a['Target']['disabled'] = true;
 			// Remove all fields except Target for Codex. (T377529)
 			// This is a temporary measure until Codex PHP is available.
 			$a = array_intersect_key( $a, [ 'Target' => true ] );

@@ -4,13 +4,56 @@ use MediaWiki\Html\Html;
 use MediaWiki\MediaWikiServices;
 use MediaWiki\ResourceLoader\FilePath;
 
+global $wgResourceBasePath;
+
 return [
 
 	'sinonjs' => [
 		'scripts' => [
-			'tests/qunit/data/sinonjs-local.js',
 			'resources/lib/sinonjs/sinon.js',
 		],
+	],
+
+	'vue-test-utils' => [
+		'localBasePath' => MW_INSTALL_PATH . '/resources/lib/vue-test-utils',
+		'remoteBasePath' => "$wgResourceBasePath/resources/lib/vue-test-utils",
+		'packageFiles' => [
+			[
+				'name' => 'vue-test-utils.js',
+				'callback' => static function (): string {
+					$contents = [
+						'const Vue = require( "vue" );',
+						'const VueCompilerDOM = require( "./vue-compiler-dom.js" );',
+						'const VueServerRenderer = {};',
+						file_get_contents( MW_INSTALL_PATH . '/resources/lib/vue-test-utils/vue-test-utils.browser.js' ),
+						'module.exports = VueTestUtils;'
+					];
+
+					return implode( "\n", $contents );
+				},
+				'versionCallback' => static function () {
+					return new FilePath( MW_INSTALL_PATH . '/resources/lib/vue-test-utils/vue-test-utils.browser.js' );
+				},
+			],
+			[
+				// NOTE: We use the global version of vue-compiler-dom rather than the CJS export,
+				// because the latter would require us to manage additional dependencies
+				// (@vue/shared) that the global version bundles.
+				'name' => 'vue-compiler-dom.js',
+				'callback' => static function (): string {
+					$contents = [
+						file_get_contents( MW_INSTALL_PATH . '/resources/lib/vue-compiler-dom/compiler-dom.global.js' ),
+						'module.exports = VueCompilerDOM;'
+					];
+
+					return implode( "\n", $contents );
+				},
+				'versionCallback' => static function () {
+					return new FilePath( MW_INSTALL_PATH . '/resources/lib/vue-compiler-dom/compiler-dom.global.js' );
+				},
+			],
+		],
+		'dependencies' => [ 'vue' ],
 	],
 
 	'mediawiki.qunit-testrunner' => [
@@ -119,7 +162,6 @@ return [
 			'tests/qunit/resources/mediawiki.ForeignApi/mediawiki.ForeignApi.test.js',
 			'tests/qunit/resources/mediawiki.ForeignApi/mediawiki.ForeignRest.test.js',
 			'tests/qunit/resources/mediawiki.inspect.test.js',
-			'tests/qunit/resources/mediawiki.interface.helpers/linker.test.js',
 			'tests/qunit/resources/mediawiki.jqueryMsg.test.js',
 			'tests/qunit/resources/mediawiki.language.test.js',
 			'tests/qunit/resources/mediawiki.messagePoster/factory.test.js',
@@ -129,6 +171,7 @@ return [
 			'tests/qunit/resources/mediawiki.rcfilters/dm.SavedQueryItemModel.test.js',
 			'tests/qunit/resources/mediawiki.rcfilters/UriProcessor.test.js',
 			'tests/qunit/resources/mediawiki.router.test.js',
+			'tests/qunit/resources/mediawiki.special.block/AdditionalDetailsField.test.js',
 			'tests/qunit/resources/mediawiki.storage.test.js',
 			'tests/qunit/resources/mediawiki.String.test.js',
 			'tests/qunit/resources/mediawiki.template.mustache.test.js',
@@ -178,7 +221,6 @@ return [
 			'mediawiki.experiments',
 			'mediawiki.ForeignApi.core',
 			'mediawiki.inspect',
-			'mediawiki.interface.helpers',
 			'mediawiki.jqueryMsg',
 			'mediawiki.language',
 			'mediawiki.language.grammar.testdata',
@@ -188,6 +230,7 @@ return [
 			'mediawiki.qunit-testrunner',
 			'mediawiki.rcfilters.filters.ui',
 			'mediawiki.router',
+			'mediawiki.special.block.codex',
 			'mediawiki.storage',
 			'mediawiki.String',
 			'mediawiki.template',
@@ -201,6 +244,7 @@ return [
 			'mediawiki.widgets.MediaSearch',
 			'mediawiki.widgets.Table',
 			'mediawiki.widgets.UserInputWidget',
+			'vue-test-utils',
 		],
 	]
 ];

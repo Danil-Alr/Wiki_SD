@@ -27,6 +27,7 @@ use MediaWiki\Maintenance\UndoLog;
 use MediaWiki\Storage\SqlBlobStore;
 use Wikimedia\AtEase\AtEase;
 use Wikimedia\Rdbms\IExpression;
+use Wikimedia\Rdbms\IReadableDatabase;
 use Wikimedia\Rdbms\LikeValue;
 
 // @codeCoverageIgnoreStart
@@ -81,6 +82,7 @@ class MoveToExternal extends Maintenance {
 		$this->addArg( 'location', 'e.g. "cluster12" or "global-swift"' );
 	}
 
+	/** @inheritDoc */
 	public function execute() {
 		$this->resolveStubs = new ResolveStubs;
 		$this->esType = $this->getArg( 0 ); // e.g. "DB" or "mwstore"
@@ -320,7 +322,7 @@ class MoveToExternal extends Maintenance {
 		$this->output( "$numResolved of $numTotal stubs resolved\n" );
 	}
 
-	protected function getConditions( $blockStart, $blockEnd, $dbr ) {
+	protected function getConditions( int $blockStart, int $blockEnd, IReadableDatabase $dbr ): array {
 		return [
 			$dbr->expr( 'old_id', '>=', $blockStart ),
 			$dbr->expr( 'old_id', '>=', $blockEnd ),
@@ -329,7 +331,7 @@ class MoveToExternal extends Maintenance {
 		];
 	}
 
-	protected function resolveText( $text, $flags ) {
+	protected function resolveText( string $text, array $flags ): array {
 		return [ $text, $flags ];
 	}
 }

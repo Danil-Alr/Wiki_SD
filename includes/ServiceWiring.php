@@ -101,6 +101,7 @@ use MediaWiki\EditPage\IntroMessageBuilder;
 use MediaWiki\EditPage\PreloadedContentBuilder;
 use MediaWiki\EditPage\SpamChecker;
 use MediaWiki\Export\WikiExporterFactory;
+use MediaWiki\FeatureShutdown;
 use MediaWiki\FileBackend\FileBackendGroup;
 use MediaWiki\FileBackend\LockManager\LockManagerGroupFactory;
 use MediaWiki\FileRepo\RepoGroup;
@@ -293,7 +294,6 @@ use Wikimedia\Rdbms\IConnectionProvider;
 use Wikimedia\Rdbms\ReadOnlyMode;
 use Wikimedia\RequestTimeout\CriticalSectionProvider;
 use Wikimedia\RequestTimeout\RequestTimeout;
-use Wikimedia\Stats\BufferingStatsdDataFactory;
 use Wikimedia\Stats\IBufferingStatsdDataFactory;
 use Wikimedia\Stats\PrefixingStatsdDataFactoryProxy;
 use Wikimedia\Stats\StatsCache;
@@ -786,7 +786,7 @@ return [
 			$srvCache,
 			$wanCache,
 			$services->getCriticalSectionProvider(),
-			$services->getStatsdDataFactory(),
+			$services->getStatsFactory(),
 			ExtensionRegistry::getInstance()->getAttribute( 'DatabaseVirtualDomains' ),
 			$services->getTracer(),
 		);
@@ -858,6 +858,15 @@ return [
 			( $writeStores !== false ) ? (array)$writeStores : [],
 			$services->getDBLoadBalancer()->getLocalDomainID(),
 			LoggerFactory::getInstance( 'ExternalStore' )
+		);
+	},
+
+	'FeatureShutdown' => static function ( MediaWikiServices $services ): FeatureShutdown {
+		return new FeatureShutdown(
+			new ServiceOptions(
+				FeatureShutdown::CONSTRUCTOR_OPTIONS,
+				$services->getMainConfig()
+			)
 		);
 	},
 
@@ -1670,12 +1679,12 @@ return [
 			$services->getRevisionLookup(),
 			$services->getRevisionRenderer(),
 			$services->getStatsFactory(),
-			$services->getDBLoadBalancerFactory(),
 			$services->getChronologyProtector(),
 			LoggerFactory::getProvider(),
 			$services->getWikiPageFactory(),
 			$services->getTitleFormatter(),
-			$services->getTracer()
+			$services->getTracer(),
+			$services->getPoolCounterFactory()
 		);
 	},
 
@@ -2173,10 +2182,9 @@ return [
 	'SiteStore' => static function ( MediaWikiServices $services ): SiteStore {
 		$rawSiteStore = new DBSiteStore( $services->getConnectionProvider() );
 
+		// If php-apcu is not installed, then CachingSiteStore still avoids
+		// repeat DB queries in the same request through an in-process cache.
 		$cache = $services->getLocalServerObjectCache();
-		if ( $cache instanceof EmptyBagOStuff ) {
-			$cache = $services->getObjectCacheFactory()->getLocalClusterInstance();
-		}
 
 		return new CachingSiteStore( $rawSiteStore, $cache );
 	},
@@ -2314,9 +2322,7 @@ return [
 	},
 
 	'StatsdDataFactory' => static function ( MediaWikiServices $services ): IBufferingStatsdDataFactory {
-		return new BufferingStatsdDataFactory(
-			rtrim( $services->getMainConfig()->get( MainConfigNames::StatsdMetricPrefix ), '.' )
-		);
+		return new NullStatsdDataFactory();
 	},
 
 	'StatsFactory' => static function ( MediaWikiServices $services ): StatsFactory {
@@ -2326,13 +2332,12 @@ return [
 		);
 		$cache = new StatsCache;
 		$emitter = \Wikimedia\Stats\OutputFormats::getNewEmitter(
-			$config->get( MainConfigNames::StatsPrefix ) ?? 'MediaWiki',
+			$config->get( MainConfigNames::StatsPrefix ),
 			$cache,
 			\Wikimedia\Stats\OutputFormats::getNewFormatter( $format ),
 			$config->get( MainConfigNames::StatsTarget )
 		);
-		$factory = new StatsFactory( $cache, $emitter, LoggerFactory::getInstance( 'Stats' ) );
-		return $factory->withStatsdDataFactory( $services->getStatsdDataFactory() );
+		return new StatsFactory( $cache, $emitter, LoggerFactory::getInstance( 'Stats' ) );
 	},
 
 	'TalkPageNotificationManager' => static function (
@@ -2566,10 +2571,12 @@ return [
 
 	'UserLinkRenderer' => static function ( MediaWikiServices $services ): UserLinkRenderer {
 		return new UserLinkRenderer(
+			$services->getHookContainer(),
 			$services->getTempUserConfig(),
 			$services->getSpecialPageFactory(),
 			$services->getLinkRenderer(),
-			$services->getTempUserDetailsLookup()
+			$services->getTempUserDetailsLookup(),
+			$services->getUserIdentityLookup()
 		);
 	},
 

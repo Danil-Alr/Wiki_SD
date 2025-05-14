@@ -6,8 +6,11 @@ use MediaWiki\Context\RequestContext;
 use MediaWiki\Deferred\DeferredUpdates;
 use MediaWiki\EditPage\EditPage;
 use MediaWiki\Exception\ErrorPageError;
+use MediaWiki\Exception\MWException;
 use MediaWiki\MainConfigNames;
 use MediaWiki\MainConfigSchema;
+use MediaWiki\Page\Article;
+use MediaWiki\Page\WikiPage;
 use MediaWiki\Request\FauxRequest;
 use MediaWiki\Revision\RevisionRecord;
 use MediaWiki\Status\Status;
@@ -962,7 +965,7 @@ hello
 	 * The watchlist expiry field should select the entered value on preview, rather than the
 	 * calculated number of days till the expiry (as it shows on edit).
 	 * @covers \MediaWiki\EditPage\EditPage::getCheckboxesDefinition()
-	 * @dataProvider provideWatchlistExpiry()
+	 * @dataProvider provideWatchlistExpiry
 	 */
 	public function testWatchlistExpiry( $existingExpiry, $postVal, $selected, $options ) {
 		// Set up config and fake current time.

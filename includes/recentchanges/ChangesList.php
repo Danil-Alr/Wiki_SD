@@ -20,8 +20,6 @@
 
 namespace MediaWiki\RecentChanges;
 
-use HtmlArmor;
-use MapCacheLRU;
 use MediaWiki\ChangeTags\ChangeTags;
 use MediaWiki\CommentFormatter\RowCommentFormatter;
 use MediaWiki\Context\ContextSource;
@@ -52,6 +50,8 @@ use MediaWiki\Watchlist\WatchedItem;
 use OOUI\IconWidget;
 use RuntimeException;
 use stdClass;
+use Wikimedia\HtmlArmor\HtmlArmor;
+use Wikimedia\MapCacheLRU\MapCacheLRU;
 use Wikimedia\Rdbms\IResultWrapper;
 
 /**
@@ -599,19 +599,15 @@ class ChangesList extends ContextSource {
 				$query
 			);
 		}
-		if ( $rc->mAttribs['rc_type'] == RC_CATEGORIZE ) {
-			$histLink = $this->message['hist'];
-		} else {
-			$histLink = $this->linkRenderer->makeKnownLink(
-				$rc->getTitle(),
-				new HtmlArmor( $this->message['hist'] ),
-				[ 'class' => 'mw-changeslist-history' ],
-				[
-					'curid' => $rc->mAttribs['rc_cur_id'],
-					'action' => 'history'
-				]
-			);
-		}
+		$histLink = $this->linkRenderer->makeKnownLink(
+			$rc->getTitle(),
+			new HtmlArmor( $this->message['hist'] ),
+			[ 'class' => 'mw-changeslist-history' ],
+			[
+				'curid' => $rc->mAttribs['rc_cur_id'],
+				'action' => 'history'
+			]
+		);
 
 		$s .= Html::rawElement( 'span', [ 'class' => 'mw-changeslist-links' ],
 				Html::rawElement( 'span', [], $diffLink ) .

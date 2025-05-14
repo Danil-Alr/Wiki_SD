@@ -22,7 +22,6 @@
 
 namespace MediaWiki\Linker;
 
-use HtmlArmor;
 use MediaTransformError;
 use MediaTransformOutput;
 use MediaWiki\Context\ContextSource;
@@ -44,9 +43,9 @@ use MediaWiki\Title\Title;
 use MediaWiki\Title\TitleValue;
 use MediaWiki\User\ExternalUserNames;
 use MediaWiki\User\UserIdentityValue;
-use MediaWiki\Xml\Xml;
 use MessageLocalizer;
 use Wikimedia\Assert\Assert;
+use Wikimedia\HtmlArmor\HtmlArmor;
 use Wikimedia\Rdbms\SelectQueryBuilder;
 use Wikimedia\RemexHtml\Serializer\SerializerNode;
 
@@ -2048,7 +2047,7 @@ class Linker {
 		$html = wfMessage( $msgKey )->escaped();
 		$tag = $restricted ? 'strong' : 'span';
 		$link = self::link( $sp, $html, [], $query, [ 'known', 'noclasses' ] );
-		return Xml::tags(
+		return Html::rawElement(
 			$tag,
 			[ 'class' => 'mw-revdelundel-link' ],
 			wfMessage( 'parentheses' )->rawParams( $link )->escaped()
@@ -2070,7 +2069,7 @@ class Linker {
 		$msgKey = $delete ? 'rev-delundel' : 'rev-showdeleted';
 		$html = wfMessage( $msgKey )->escaped();
 		$htmlParentheses = wfMessage( 'parentheses' )->rawParams( $html )->escaped();
-		return Xml::tags( 'span', [ 'class' => 'mw-revdelundel-link' ], $htmlParentheses );
+		return Html::rawElement( 'span', [ 'class' => 'mw-revdelundel-link' ], $htmlParentheses );
 	}
 
 	/**
@@ -2125,7 +2124,7 @@ class Linker {
 		if ( $tooltip === false ) {
 			return '';
 		}
-		return Xml::expandAttributes( [
+		return Html::expandAttributes( [
 			'title' => $tooltip
 		] );
 	}

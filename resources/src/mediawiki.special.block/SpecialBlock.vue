@@ -74,14 +74,15 @@
 				:can-delete-log-entry="canDeleteLogEntry"
 			></block-log>
 
-			<div v-if="formVisible" class="mw-block__block-form">
+			<div
+				v-if="formVisible"
+				class="mw-block__block-form"
+				@change="formDirty = true"
+			>
 				<h2>{{ formHeaderText }}</h2>
 				<block-type-field></block-type-field>
 				<expiry-field></expiry-field>
-				<reason-field
-					v-model:selected="store.reason"
-					v-model:other="store.reasonOther"
-				></reason-field>
+				<reason-field v-model="store.reason"></reason-field>
 				<block-details-field></block-details-field>
 				<additional-details-field></additional-details-field>
 				<confirmation-dialog
@@ -103,6 +104,7 @@
 					action="default"
 					data-test="cancel-edit-button"
 					weight="primary"
+					type="button"
 					@click="onFormCancel"
 				>
 					{{ $i18n( 'block-cancel' ) }}
@@ -197,7 +199,17 @@ module.exports = exports = defineComponent( {
 		const store = useBlockStore();
 		const blockShowSuppressLog = mw.config.get( 'blockShowSuppressLog' ) || false;
 		const canDeleteLogEntry = mw.config.get( 'blockCanDeleteLogEntry' ) || false;
-		const { alreadyBlocked, formErrors, formSubmitted, formVisible, blockAdded, blockRemoved, enableMultiblocks } = storeToRefs( store );
+		const {
+			alreadyBlocked,
+			formErrors,
+			formSubmitted,
+			formVisible,
+			formDirty,
+			blockAdded,
+			blockRemoved,
+			enableMultiblocks,
+			removalConfirmationOpen
+		} = storeToRefs( store );
 		const messagesContainer = ref();
 		const blockSavedMessage = ref( '' );
 		// Value to use for BlockLog component keys, so they reload after saving.
@@ -213,7 +225,6 @@ module.exports = exports = defineComponent( {
 
 		const confirmationOpen = ref( false );
 		const showBlockLogs = computed( () => ( store.targetUser && store.targetExists ) || store.blockId );
-		const removalConfirmationOpen = ref( false );
 
 		// TODO: Remove some time after deprecation
 		// T382539: Check if we've been redirected from Special:Unblock
@@ -224,9 +235,7 @@ module.exports = exports = defineComponent( {
 		onMounted( () => {
 			// Prevent the window from being closed as long as we have the form open
 			mw.confirmCloseWindow( {
-				test: function () {
-					return formVisible.value;
-				}
+				test: () => formVisible.value && formDirty.value
 			} );
 
 			// If we're editing or removing via an id URL parameter, check that the block exists.
@@ -246,6 +255,7 @@ module.exports = exports = defineComponent( {
 					} else {
 						// If the block ID is invalid, show an error message.
 						formErrors.value = [ mw.msg( 'block-invalid-id' ) ];
+						store.blockId = null;
 					}
 				} );
 			}
@@ -343,12 +353,6 @@ module.exports = exports = defineComponent( {
 					return;
 				}
 
-				if ( store.blockId ) {
-					blockSavedMessage.value = mw.message( 'block-updated-message' ).text();
-				} else {
-					blockSavedMessage.value = mw.message( 'block-added-message' ).text();
-				}
-
 				doBlock();
 			} else {
 				// nextTick() needed to ensure error messages are rendered before scrolling.
@@ -413,6 +417,12 @@ module.exports = exports = defineComponent( {
 					if ( result.block && result.block.user ) {
 						store.targetUser = result.block.user;
 					}
+					// Add the success message.
+					if ( store.blockId ) {
+						blockSavedMessage.value = mw.message( 'block-updated-message' ).text();
+					} else {
+						blockSavedMessage.value = mw.message( 'block-added-message' ).text();
+					}
 					blockAdded.value = true;
 					formErrors.value = [];
 					// Bump the submitCount (to re-render the logs) after scrolling
@@ -422,6 +432,9 @@ module.exports = exports = defineComponent( {
 					formVisible.value = false;
 					// Reset the form so no block data leaks into the next block (T384822).
 					store.resetForm( false, false );
+					// Fire clientside hook for scripts that want to do stuff post-blocking.
+					// This is documented in init.js since JSDoc doesn't parse Vue files (T360456).
+					mw.hook( 'SpecialBlock.block' ).fire( result.block );
 				} )
 				.fail( ( _, errorObj ) => {
 					formErrors.value = errorObj.errors.map( ( e ) => e.html );
@@ -441,8 +454,11 @@ module.exports = exports = defineComponent( {
 			}
 		} );
 
-		// Submit the form if form is visible and 'Enter' is pressed
 		watch( formVisible, ( newValue ) => {
+			// Notify scripts that the form visibility changed. Documented in init.js.
+			mw.hook( 'SpecialBlock.form' ).fire( newValue, store.targetUser, store.blockId );
+
+			// Submit the form if form is visible and 'Enter' is pressed
 			if ( newValue ) {
 				nextTick( () => {
 					const blockForm = document.querySelector( '.mw-block__block-form' );
@@ -469,6 +485,7 @@ module.exports = exports = defineComponent( {
 			store,
 			messagesContainer,
 			formErrors,
+			formDirty,
 			blockAdded,
 			blockRemoved,
 			shouldShowAddBlockButton,
@@ -556,12 +573,7 @@ module.exports = exports = defineComponent( {
 	legend {
 		// Match font-size of accordion labels. T383921.
 		font-size: @font-size-medium;
-	}
-
-	.cdx-field:first-child {
-		// Override Codex's lack of top margin for the first fieldset,
-		// because here it appears directly below an accordion border.
-		margin-top: @spacing-100;
+		font-weight: inherit;
 	}
 
 	legend .cdx-label__label,

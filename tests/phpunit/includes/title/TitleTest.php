@@ -2,10 +2,12 @@
 
 use MediaWiki\Cache\BacklinkCache;
 use MediaWiki\Content\WikitextContent;
+use MediaWiki\Exception\MWException;
 use MediaWiki\Language\RawMessage;
 use MediaWiki\Linker\LinkTarget;
 use MediaWiki\MainConfigNames;
 use MediaWiki\Message\Message;
+use MediaWiki\Page\Article;
 use MediaWiki\Page\PageIdentity;
 use MediaWiki\Page\PageIdentityValue;
 use MediaWiki\Tests\Unit\DummyServicesTrait;
@@ -144,7 +146,7 @@ class TitleTest extends MediaWikiIntegrationTestCase {
 		$this->assertEquals( $expectedBool, $title->hasSubjectNamespace( $ns ) );
 	}
 
-	public function dataGetContentModel() {
+	public static function provideGetContentModel() {
 		return [
 			[ 'Help:Foo', CONTENT_MODEL_WIKITEXT ],
 			[ 'Help:Foo.js', CONTENT_MODEL_WIKITEXT ],
@@ -170,7 +172,7 @@ class TitleTest extends MediaWikiIntegrationTestCase {
 	}
 
 	/**
-	 * @dataProvider dataGetContentModel
+	 * @dataProvider provideGetContentModel
 	 * @covers \MediaWiki\Title\Title::getContentModel
 	 */
 	public function testGetContentModel( $title, $expectedModelId ) {
@@ -179,7 +181,7 @@ class TitleTest extends MediaWikiIntegrationTestCase {
 	}
 
 	/**
-	 * @dataProvider dataGetContentModel
+	 * @dataProvider provideGetContentModel
 	 * @covers \MediaWiki\Title\Title::hasContentModel
 	 */
 	public function testHasContentModel( $title, $expectedModelId ) {

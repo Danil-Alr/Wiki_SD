@@ -8,7 +8,6 @@
 		<!-- eslint-disable vue/no-unused-refs -->
 		<cdx-lookup
 			id="mw-bi-target"
-			ref="lookupComponent"
 			v-model:selected="selection"
 			v-model:input-value="currentSearchTerm"
 			class="mw-block-target"
@@ -22,6 +21,7 @@
 			@change="onChange"
 			@clear="onClear"
 			@update:selected="onSelect"
+			@keydown.enter.prevent="true/* See T391085 */"
 		>
 		</cdx-lookup>
 		<!-- eslint-enable vue/no-unused-refs -->
@@ -43,7 +43,6 @@ const {
 	onMounted,
 	ref,
 	shallowRef,
-	useTemplateRef,
 	watch,
 	DefineSetupFnComponent,
 	Ref
@@ -52,6 +51,7 @@ const { CdxLookup, CdxField } = require( '@wikimedia/codex' );
 const { storeToRefs } = require( 'pinia' );
 const { cdxIconSearch } = require( '../icons.json' );
 const useBlockStore = require( '../stores/block.js' );
+const util = require( '../util.js' );
 const api = new mw.Api();
 
 /**
@@ -84,16 +84,11 @@ module.exports = exports = defineComponent( {
 		 */
 		const refreshKey = ref( 0 );
 		/**
-		 * Reference to the lookup component.
-		 *
-		 * @type {Ref<CdxLookup>}
-		 */
-		const lookupComponent = useTemplateRef( 'lookupComponent' );
-		/**
 		 * Codex Lookup component requires a v-modeled `selected` prop.
 		 * Until a selection is made, the value may be set to null.
 		 * We instead want to only update the targetUser for non-null values
 		 * (made either via selection, or the 'change' event).
+		 *
 		 * @type {Ref<string>}
 		 */
 		const selection = ref( props.modelValue || '' );
@@ -104,9 +99,7 @@ module.exports = exports = defineComponent( {
 		 *
 		 * @type {Ref<string>}
 		 */
-		const currentSearchTerm = ref(
-			props.modelValue || mw.config.get( 'blockTargetUserInput' ) || ''
-		);
+		const currentSearchTerm = ref( props.modelValue || '' );
 		/**
 		 * Menu items for the Lookup component.
 		 *
@@ -141,17 +134,8 @@ module.exports = exports = defineComponent( {
 				htmlInput.focus();
 			}
 
-			// If at this point the targetUser (set by server) is different from
-			// the htmlInput value, the user has typed in something before Vue was loaded.
-			// Trigger a new search and open the result menu.
-			if ( htmlInput.value && htmlInput.value !== targetUser.value ) {
-				onInput( htmlInput.value ).then( () => {
-					if ( menuItems.value.length > 0 ) {
-						lookupComponent.value.expanded = true;
-					}
-				} );
-			} else if ( !!targetUser.value && !store.targetExists ) {
-				// Ensure error messages are displayed for missing users.
+			// Ensure error messages are displayed for missing users.
+			if ( !!targetUser.value && !store.targetExists ) {
 				validate();
 			}
 
@@ -321,18 +305,16 @@ module.exports = exports = defineComponent( {
 		 */
 		function setTarget( value ) {
 			validate();
-			targetUser.value = value;
-		}
 
-		// Change the address bar to reflect the newly-selected target (while keeping all URL parameters).
-		// Do this when the targetUser changes, which is not necessarily when the CdxLookup selection changes.
-		watch( () => targetUser.value, () => {
-			const specialBlockUrl = mw.util.getUrl( 'Special:Block' + ( targetUser.value ? '/' + targetUser.value : '' ) );
-			if ( window.location.pathname !== specialBlockUrl ) {
-				const newUrl = ( new URL( `${ specialBlockUrl }${ window.location.search }`, window.location.origin ) ).toString();
-				window.history.replaceState( null, '', newUrl );
+			if ( mw.util.isIPAddress( value, true ) ) {
+				// Sanitize IP & IP ranges
+				targetUser.value = util.sanitizeRange( value );
+			} else {
+				targetUser.value = value;
 			}
-		} );
+
+			onInput( value );
+		}
 
 		return {
 			targetExists,

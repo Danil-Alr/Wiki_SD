@@ -524,6 +524,7 @@ return [
 			'ChronologyProtectorSecret' => '',
 			'ParserCacheExpireTime' => 86400,
 			'ParserCacheAsyncExpireTime' => 60,
+			'ParserCacheAsyncRefreshJobs' => true,
 			'OldRevisionParserCacheExpireTime' => 3600,
 			'ObjectCacheSessionExpiry' => 3600,
 			'PHPSessionHandling' => 'enable',
@@ -796,8 +797,6 @@ return [
 			'ParsoidSettings' => [
 				'useSelser' => true,
 			],
-			'ParsoidFragmentSupport' => false,
-			'ParsoidFragmentInput' => false,
 			'ParsoidExperimentalParserFunctionOutput' => false,
 			'ParserEnableLegacyMediaDOM' => false,
 			'ParserEnableLegacyHeadingDOM' => false,
@@ -2641,6 +2640,8 @@ return [
 			'EnableProtectionIndicators' => false,
 			'OutputPipelineStages' => [
 			],
+			'FeatureShutdown' => [
+			],
 		],
 		'type' => [
 			'ConfigRegistry' => 'object',
@@ -2906,14 +2907,6 @@ return [
 			'UrlProtocols' => 'array',
 			'TidyConfig' => 'object',
 			'ParsoidSettings' => 'object',
-			'ParsoidFragmentSupport' => [
-				'boolean',
-				'string',
-			],
-			'ParsoidFragmentInput' => [
-				'boolean',
-				'string',
-			],
 			'ParsoidExperimentalParserFunctionOutput' => 'boolean',
 			'NoFollowNsExceptions' => 'array',
 			'NoFollowDomainExceptions' => 'array',
@@ -3151,6 +3144,7 @@ return [
 			'ShowLogoutConfirmation' => 'boolean',
 			'EnableProtectionIndicators' => 'boolean',
 			'OutputPipelineStages' => 'object',
+			'FeatureShutdown' => 'array',
 		],
 		'mergeStrategy' => [
 			'TiffThumbnailType' => 'replace',

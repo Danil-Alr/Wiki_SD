@@ -23,6 +23,7 @@ use Throwable;
 use Wikimedia\Message\MessageValue;
 use Wikimedia\ObjectFactory\ObjectFactory;
 use Wikimedia\Stats\StatsFactory;
+use Wikimedia\Timestamp\ConvertibleTimestamp;
 
 /**
  * A REST module represents a collection of endpoints.
@@ -290,7 +291,7 @@ abstract class Module {
 	 */
 	public function execute( string $path, RequestInterface $request ): ResponseInterface {
 		$handler = null;
-		$startTime = microtime( true );
+		$startTime = ConvertibleTimestamp::hrtime();
 
 		try {
 			$handler = $this->getHandlerForPath( $path, $request, true );
@@ -321,7 +322,7 @@ abstract class Module {
 		ResponseInterface $response,
 		float $startTime
 	) {
-		$latency = ( microtime( true ) - $startTime ) * 1000;
+		$latency = ConvertibleTimestamp::hrtime() - $startTime;
 
 		// NOTE: The "/" prefix is for consistency with old logs. It's rather ugly.
 		$pathForMetrics = $this->getPathPrefix();
@@ -352,7 +353,7 @@ abstract class Module {
 				->setLabel( 'method', $requestMethod )
 				->setLabel( 'status', "$statusCode" )
 				->copyToStatsdAt( "rest_api_latency.$pathForMetrics.$requestMethod.$statusCode" )
-				->observe( $latency );
+				->observeNanoseconds( $latency );
 		}
 	}
 
@@ -504,7 +505,7 @@ abstract class Module {
 		// even if the spec allows multiple.
 		$moduleId = $this->getPathPrefix();
 
-		// Fields from OAS Info to include.
+		// Fields from openApiSpec info to include.
 		// Note that mwapi-1.0 is based on OAS 3.0, so it doesn't support the
 		// "summary" property introduced in 3.1.
 		$infoFields = [ 'version', 'title', 'description' ];

@@ -34,7 +34,6 @@ use MediaWiki\SpecialPage\FormSpecialPage;
 use MediaWiki\Title\NamespaceInfo;
 use MediaWiki\Title\Title;
 use MediaWiki\Title\TitleFactory;
-use MediaWiki\Xml\Xml;
 use SearchEngineFactory;
 use stdClass;
 use Wikimedia\Rdbms\IConnectionProvider;
@@ -205,7 +204,6 @@ class SpecialWhatLinksHere extends FormSpecialPage {
 
 		$namespace = $this->formData['namespace'];
 		if ( $namespace !== '' ) {
-			$namespace = intval( $this->formData['namespace'] );
 			$invert = $this->formData['invert'];
 			if ( $invert ) {
 				// Select all namespaces except for the specified one.
@@ -325,7 +323,7 @@ class SpecialWhatLinksHere extends FormSpecialPage {
 			if ( $level == 0 && !$this->including() ) {
 				if ( $hidelinks || $hidetrans || $hideredirs ) {
 					$msgKey = 'nolinkshere-filter';
-				} elseif ( is_int( $namespace ) ) {
+				} elseif ( $namespace !== '' ) {
 					$msgKey = 'nolinkshere-ns';
 				} else {
 					$msgKey = 'nolinkshere';
@@ -474,7 +472,7 @@ class SpecialWhatLinksHere extends FormSpecialPage {
 					$nt,
 					$this->getConfig()->get( MainConfigNames::MaxRedirectLinksRetrieved )
 				);
-				$out->addHTML( Xml::closeElement( 'li' ) );
+				$out->addHTML( Html::closeElement( 'li' ) );
 			} else {
 				$out->addHTML( $this->listItem( $row, $nt, $target ) );
 			}
@@ -490,7 +488,7 @@ class SpecialWhatLinksHere extends FormSpecialPage {
 	}
 
 	protected function listStart( $level ) {
-		return Xml::openElement( 'ul', ( $level ? [] : [ 'id' => 'mw-whatlinkshere-list' ] ) );
+		return Html::openElement( 'ul', ( $level ? [] : [ 'id' => 'mw-whatlinkshere-list' ] ) );
 	}
 
 	private function listItem( stdClass $row, PageIdentity $nt, LinkTarget $target, bool $notClose = false ): string {
@@ -550,12 +548,12 @@ class SpecialWhatLinksHere extends FormSpecialPage {
 		);
 
 		return $notClose ?
-			Xml::openElement( 'li' ) . "$link $propsText $wlh\n" :
-			Xml::tags( 'li', null, "$link $propsText $wlh" ) . "\n";
+			Html::openElement( 'li' ) . "$link $propsText $wlh\n" :
+			Html::rawElement( 'li', [], "$link $propsText $wlh" ) . "\n";
 	}
 
 	protected function listEnd() {
-		return Xml::closeElement( 'ul' );
+		return Html::closeElement( 'ul' );
 	}
 
 	protected function wlhLink( Title $target, $text, $editText ) {
@@ -651,6 +649,9 @@ class SpecialWhatLinksHere extends FormSpecialPage {
 				'label-message' => 'namespace',
 				'all' => '',
 				'default' => '',
+				'filter-callback' => static function ( $value ) {
+					return $value !== '' ? intval( $value ) : '';
+				},
 				'in-user-lang' => true,
 				'section' => 'whatlinkshere-ns',
 			],

@@ -18,13 +18,15 @@
  * @file
  */
 
+use Psr\Log\NullLogger;
 use Wikimedia\ObjectCache\HashBagOStuff;
 use Wikimedia\ObjectCache\WANObjectCache;
-use Wikimedia\Rdbms\DBUnexpectedError;
+use Wikimedia\Rdbms\DBConnectionError;
 use Wikimedia\Rdbms\FakeResultWrapper;
 use Wikimedia\Rdbms\IDatabase;
 use Wikimedia\Rdbms\ILoadBalancer;
 use Wikimedia\Rdbms\LoadMonitor;
+use Wikimedia\Stats\StatsFactory;
 
 /**
  * @covers \Wikimedia\Rdbms\LoadMonitor
@@ -61,7 +63,14 @@ class LoadMonitorTest extends MediaWikiUnitTestCase {
 
 		$wanMock = new WANObjectCache( [ 'cache' => new HashBagOStuff() ] );
 
-		$loadMonitor = new LoadMonitor( $lbMock, new HashBagOStuff(), $wanMock, [] );
+		$loadMonitor = new LoadMonitor(
+			$lbMock,
+			new HashBagOStuff(),
+			$wanMock,
+			new NullLogger(),
+			StatsFactory::newNull(),
+			[]
+		);
 
 		$weights = [ 0, 100, 100, 100, 100 ];
 		$loadMonitor->scaleLoads( $weights );
@@ -99,10 +108,17 @@ class LoadMonitorTest extends MediaWikiUnitTestCase {
 
 		$wanMock = new WANObjectCache( [ 'cache' => new HashBagOStuff() ] );
 
-		$loadMonitor = new LoadMonitor( $lbMock, new HashBagOStuff(), $wanMock, [ 'maxConnCount' => 400 ] );
+		$loadMonitor = new LoadMonitor(
+			$lbMock,
+			new HashBagOStuff(),
+			$wanMock,
+			new NullLogger(),
+			StatsFactory::newNull(),
+			[ 'maxConnCount' => 400 ]
+		);
 
 		$weights = [ 0, 100, 100, 100, 100 ];
-		$this->expectException( DBUnexpectedError::class );
+		$this->expectException( DBConnectionError::class );
 		$loadMonitor->scaleLoads( $weights );
 	}
 

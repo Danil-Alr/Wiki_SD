@@ -516,7 +516,7 @@ class HandlerTest extends MediaWikiUnitTestCase {
 		$this->assertSame( $expectedParams, $params );
 	}
 
-	public function provideValidateBodyParams_invalid() {
+	public static function provideValidateBodyParams_invalid() {
 		$paramDefintions = [
 			'foo' => [
 				ParamValidator::PARAM_TYPE => 'timestamp',
@@ -1325,8 +1325,7 @@ class HandlerTest extends MediaWikiUnitTestCase {
 					$resp = $spec['responses'];
 
 					Assert::assertArrayHasKey( 200, $resp );
-					Assert::assertArrayHasKey( 400, $resp );
-					Assert::assertArrayHasKey( 500, $resp );
+					Assert::assertArrayHasKey( 'default', $resp );
 				},
 		];
 
@@ -1705,7 +1704,7 @@ class HandlerTest extends MediaWikiUnitTestCase {
 			'$responseBodySchema' => null,
 			'$routeConfig' => [
 				'path' => 'test/{p}',
-				'OAS' => [
+				'openApiSpec' => [
 					'title' => 'just a test',
 					'parameters' => 'will be ignored',
 				]

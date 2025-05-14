@@ -31,7 +31,6 @@ use MediaWiki\User\Options\UserOptionsLookup;
 use MediaWiki\User\TempUser\TempUserConfig;
 use MediaWiki\User\UserIdentityUtils;
 use MediaWiki\Watchlist\WatchedItemStoreInterface;
-use MediaWiki\Xml\Xml;
 use SearchEngineFactory;
 use Wikimedia\Rdbms\SelectQueryBuilder;
 use Wikimedia\Rdbms\Subquery;
@@ -323,9 +322,9 @@ class SpecialRecentChangesLinked extends SpecialRecentChanges {
 		$opts->consumeValues( [ 'showlinkedto', 'target' ] );
 
 		$extraOpts['target'] = [ $this->msg( 'recentchangeslinked-page' )->escaped(),
-			Xml::input( 'target', 40, str_replace( '_', ' ', $opts['target'] ) ) . ' ' .
-			Xml::check( 'showlinkedto', $opts['showlinkedto'], [ 'id' => 'showlinkedto' ] ) . ' ' .
-			Xml::label( $this->msg( 'recentchangeslinked-to' )->text(), 'showlinkedto' ) ];
+			Html::input( 'target', str_replace( '_', ' ', $opts['target'] ), 'text', [ 'size' => 40 ] ) . ' ' .
+			Html::check( 'showlinkedto', $opts['showlinkedto'], [ 'id' => 'showlinkedto' ] ) . ' ' .
+			Html::label( $this->msg( 'recentchangeslinked-to' )->text(), 'showlinkedto' ) ];
 
 		$this->addHelpLink( 'Help:Related changes' );
 		return $extraOpts;
@@ -365,7 +364,7 @@ class SpecialRecentChangesLinked extends SpecialRecentChanges {
 			$this->getOutput()->addHTML(
 				Html::rawElement(
 					'div',
-					[ 'class' => 'mw-changeslist-empty mw-changeslist-notargetpage' ],
+					[ 'class' => [ 'mw-changeslist-empty', 'mw-changeslist-notargetpage' ] ],
 					$this->msg( 'recentchanges-notargetpage' )->parse()
 				)
 			);
@@ -373,7 +372,7 @@ class SpecialRecentChangesLinked extends SpecialRecentChanges {
 			$this->getOutput()->addHTML(
 				Html::rawElement(
 					'div',
-					[ 'class' => 'mw-changeslist-empty mw-changeslist-invalidtargetpage' ],
+					[ 'class' => [ 'mw-changeslist-empty', 'mw-changeslist-invalidtargetpage' ] ],
 					$this->msg( 'allpagesbadtitle' )->parse()
 				)
 			);

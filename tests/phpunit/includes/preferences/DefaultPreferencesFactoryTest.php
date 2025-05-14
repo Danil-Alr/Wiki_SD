@@ -20,6 +20,8 @@ use MediaWiki\Preferences\DefaultPreferencesFactory;
 use MediaWiki\Preferences\SignatureValidatorFactory;
 use MediaWiki\Request\FauxRequest;
 use MediaWiki\Session\SessionId;
+use MediaWiki\Skin\Skin;
+use MediaWiki\Skin\SkinFactory;
 use MediaWiki\Tests\Session\TestUtils;
 use MediaWiki\Tests\Unit\DummyServicesTrait;
 use MediaWiki\Title\NamespaceInfo;
@@ -288,7 +290,7 @@ class DefaultPreferencesFactoryTest extends \MediaWikiIntegrationTestCase {
 		);
 	}
 
-	public function emailAuthenticationProvider() {
+	public static function emailAuthenticationProvider() {
 		$userNoEmail = new User;
 		$userEmailUnauthed = new User;
 		$userEmailUnauthed->setEmail( 'noauth@example.org' );

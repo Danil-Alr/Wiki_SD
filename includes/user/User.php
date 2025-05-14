@@ -29,6 +29,7 @@ use MediaWiki\Auth\AuthenticationRequest;
 use MediaWiki\Auth\AuthManager;
 use MediaWiki\Block\AbstractBlock;
 use MediaWiki\Block\Block;
+use MediaWiki\Block\DatabaseBlock;
 use MediaWiki\Block\SystemBlock;
 use MediaWiki\Context\RequestContext;
 use MediaWiki\DAO\WikiAwareEntityTrait;
@@ -915,11 +916,12 @@ class User implements Stringable, Authority, UserIdentity, UserEmailContact {
 
 	/**
 	 * Get the username corresponding to a given user ID
-	 * @deprecated since 1.43, Use UserIdentityLookup to get name from id
+	 * @deprecated since 1.43, emits deprecation warnings since 1.44, Use UserIdentityLookup to get name from id
 	 * @param int $id User ID
 	 * @return string|false The corresponding username
 	 */
 	public static function whoIs( $id ) {
+		wfDeprecated( __METHOD__, '1.43' );
 		return MediaWikiServices::getInstance()->getUserCache()
 			->getProp( $id, 'name' );
 	}
@@ -927,11 +929,13 @@ class User implements Stringable, Authority, UserIdentity, UserEmailContact {
 	/**
 	 * Get the real name of a user given their user ID
 	 *
-	 * @deprecated since 1.43, Use UserFactory to get user instance and use User::getRealName
+	 * @deprecated since 1.43, emits deprecation warnings since 1.44,
+	 *   Use UserFactory to get user instance and use User::getRealName
 	 * @param int $id User ID
 	 * @return string|false The corresponding user's real name
 	 */
 	public static function whoIsReal( $id ) {
+		wfDeprecated( __METHOD__, '1.43' );
 		return MediaWikiServices::getInstance()->getUserCache()
 			->getProp( $id, 'real_name' );
 	}
@@ -2688,8 +2692,9 @@ class User implements Stringable, Authority, UserIdentity, UserEmailContact {
 		$blockWasSpread = false;
 		$this->getHookRunner()->onSpreadAnyEditBlock( $this, $blockWasSpread );
 
-		if ( $this->getBlock() ) {
-			$blockWasSpread = $blockWasSpread || $this->spreadBlock();
+		$block = $this->getBlock();
+		if ( $block ) {
+			$blockWasSpread = $blockWasSpread || $this->spreadBlock( $block );
 		}
 
 		return $blockWasSpread;
@@ -2698,9 +2703,10 @@ class User implements Stringable, Authority, UserIdentity, UserEmailContact {
 	/**
 	 * If this (non-anonymous) user is blocked,
 	 * block the IP address they've successfully logged in from.
+	 * @param Block $block The active block on the user
 	 * @return bool A block was spread
 	 */
-	protected function spreadBlock() {
+	protected function spreadBlock( Block $block ): bool {
 		wfDebug( __METHOD__ . "()" );
 		$this->load();
 		if ( $this->mId == 0 ) {
@@ -2708,13 +2714,12 @@ class User implements Stringable, Authority, UserIdentity, UserEmailContact {
 		}
 
 		$blockStore = MediaWikiServices::getInstance()->getDatabaseBlockStore();
-
-		$userblock = $blockStore->newFromTarget( $this->getName() );
-		if ( !$userblock ) {
-			return false;
+		foreach ( $block->toArray() as $singleBlock ) {
+			if ( $singleBlock instanceof DatabaseBlock && $singleBlock->isAutoblocking() ) {
+				return (bool)$blockStore->doAutoblock( $singleBlock, $this->getRequest()->getIP() );
+			}
 		}
-
-		return (bool)$blockStore->doAutoblock( $userblock, $this->getRequest()->getIP() );
+		return false;
 	}
 
 	/**

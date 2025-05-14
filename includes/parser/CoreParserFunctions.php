@@ -1250,21 +1250,17 @@ class CoreParserFunctions {
 		if ( !count( $args ) ) {
 			return '';
 		}
-		$tagName = strtolower( trim( $frame->expand( array_shift( $args ) ) ) );
+		$tagName = strtolower( trim( $parser->killMarkers(
+			$frame->expand( array_shift( $args ) )
+		) ) );
 		$processNowiki = $parser->tagNeedsNowikiStrippedInTagPF( $tagName ) ? PPFrame::PROCESS_NOWIKI : 0;
 
 		if ( count( $args ) ) {
-			// With Fragment v2+ support, the $processNoWiki flag isn't actually
-			// required here, but it doesn't do any harm.
+			// With Parsoid Fragment support, $processNoWiki flag
+			// isn't actually required as a ::expand() flag, but it
+			// doesn't do any harm.
 			$inner = $frame->expand( array_shift( $args ), $processNowiki );
-			if (
-				$processNowiki &&
-				in_array(
-					MediaWikiServices::getInstance()->getMainConfig()
-						->get( MainConfigNames::ParsoidFragmentSupport ),
-					[ 'v2', 'v3' ], true
-				)
-			) {
+			if ( $processNowiki ) {
 				// This is the T299103 workaround for <syntaxhighlight>,
 				// and reproduces the code in SyntaxHighlight::parserHook.
 				// The Parsoid extension API (SyntaxHighlight::sourceToDom)
@@ -1295,7 +1291,7 @@ class CoreParserFunctions {
 			$attrText = '';
 			foreach ( $attributes as $name => $value ) {
 				$attrText .= ' ' . htmlspecialchars( $name ) .
-					'="' . htmlspecialchars( $value, ENT_COMPAT ) . '"';
+					'="' . htmlspecialchars( $parser->killMarkers( $value ), ENT_COMPAT ) . '"';
 			}
 			if ( $inner === null ) {
 				return "<$tagName$attrText/>";

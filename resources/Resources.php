@@ -48,6 +48,7 @@ use MediaWiki\ResourceLoader\UserModule;
 use MediaWiki\ResourceLoader\UserOptionsModule;
 use MediaWiki\ResourceLoader\UserStylesModule;
 use MediaWiki\ResourceLoader\WikiModule;
+use MediaWiki\Skin\Skin;
 use MediaWiki\SpecialPage\ChangesListSpecialPage;
 use MediaWiki\Title\Title;
 use Wikimedia\ParamValidator\TypeDef\ExpiryDef;
@@ -111,6 +112,25 @@ return [
 				'resources/src/mediawiki.page.gallery.styles/content.media.less',
 			],
 		],
+	],
+	'mediawiki.skinning.typeaheadSearch' => [
+		'dependencies' => [
+			'mediawiki.codex.typeaheadSearch'
+		],
+		'packageFiles' => [
+			'resources/src/mediawiki.skinning.typeaheadSearch/index.js',
+			'resources/src/mediawiki.skinning.typeaheadSearch/App.vue',
+			'resources/src/mediawiki.skinning.typeaheadSearch/instrumentation.js',
+			'resources/src/mediawiki.skinning.typeaheadSearch/fetch.js',
+			'resources/src/mediawiki.skinning.typeaheadSearch/restSearchClient.js',
+			'resources/src/mediawiki.skinning.typeaheadSearch/urlGenerator.js',
+		],
+		'messages' => [
+			'searchbutton',
+			'searchresults',
+			'search-loader',
+			'searchsuggest-containing-html'
+		]
 	],
 
 	/* Polyfills */
@@ -390,6 +410,8 @@ return [
 	/* Moment.js */
 
 	'moment' => [
+		'deprecated' => '[1.44] Use mediawiki.DateFormatter or native Intl function instead.'
+			. ' See https://phabricator.wikimedia.org/T146798',
 		'scripts' => [
 			'resources/lib/moment/moment.js',
 			'resources/src/moment/moment-module.js',
@@ -654,23 +676,11 @@ return [
 		'codexStyleOnly' => true
 	],
 
-	'@wikimedia/codex-search' => [
-		'deprecated' => '[1.43] Use a CodexModule with codexComponents to set your specific components used: '
-			. 'https://www.mediawiki.org/wiki/Codex#Using_a_limited_subset_of_components',
-		'class' => CodexModule::class,
-		'codexComponents' => [ 'CdxTypeaheadSearch' ],
-		'codexScriptOnly' => true,
-		'dependencies' => [
-			'codex-search-styles',
-		],
-	],
-
-	'codex-search-styles' => [
-		'deprecated' => '[1.43] Use a CodexModule with codexComponents to set your specific components used: '
-		. 'https://www.mediawiki.org/wiki/Codex#Using_a_limited_subset_of_components',
-		'class' => CodexModule::class,
-		'codexComponents' => [ 'CdxTypeaheadSearch' ],
-		'codexStyleOnly' => true,
+	'mediawiki.codex.typeaheadSearch' => [
+		'class' => 'MediaWiki\\ResourceLoader\\CodexModule',
+		'codexComponents' => [
+			'CdxTypeaheadSearch'
+		]
 	],
 
 	/* MediaWiki */
@@ -1095,7 +1105,6 @@ return [
 			'oojs-ui-windows',
 			'oojs-ui.styles.icons-content',
 			'oojs-ui.styles.icons-editing-advanced',
-			'moment',
 			'mediawiki.Title',
 			'mediawiki.api',
 			'mediawiki.user',
@@ -1707,6 +1716,7 @@ return [
 			) {
 				$readyConfig = [
 					'search' => true,
+					'searchModule' => 'mediawiki.searchSuggest',
 					'collapsible' => true,
 					'sortable' => true,
 					'selectorLogoutLink' => '#pt-logout a[data-mw="interface"]'
@@ -2016,7 +2026,6 @@ return [
 			'mediawiki.api',
 			'mediawiki.jqueryMsg',
 			'mediawiki.language',
-			'mediawiki.Uri',
 			'mediawiki.user',
 			'mediawiki.util',
 			'mediawiki.widgets',
@@ -2032,17 +2041,6 @@ return [
 			'oojs-ui-windows.icons',
 			'user.options',
 		],
-	],
-	'mediawiki.interface.helpers' => [
-		'localBasePath' => MW_INSTALL_PATH . '/resources/src/mediawiki.interface.helpers',
-		'remoteBasePath' => "$wgResourceBasePath/resources/src/mediawiki.interface.helpers",
-		'packageFiles' => [
-			'init.js',
-			'linker.js'
-		],
-		'dependencies' => [
-			'mediawiki.interface.helpers.linker.styles'
-		]
 	],
 	'mediawiki.interface.helpers.linker.styles' => [
 		'class' => CodexModule::class,
@@ -2090,6 +2088,7 @@ return [
 			'resources/src/mediawiki.special/blocklist.less',
 			'resources/src/mediawiki.special/version.less',
 			'resources/src/mediawiki.special/contribute.less',
+			'resources/src/mediawiki.special/specialPages.less',
 		],
 	],
 	'mediawiki.special.apisandbox' => [
@@ -2539,19 +2538,19 @@ return [
 			'convertmessagebox.js',
 			'editfont.js',
 			'nav.js',
-			'skinPrefs.js',
-			'signature.js',
-			'timezone.js',
 			[
-				'name' => 'layout.js',
+				'name' => 'nav-setup.js',
 				'callback' => static function ( Context $context ) {
 					$skinName = $context->getSkin();
 					( new HookRunner( MediaWikiServices::getInstance()->getHookContainer() ) )
 						->onPreferencesGetLayout( $useMobileLayout, $skinName );
-					$file = $useMobileLayout ? 'mobile.js' : 'tabs.js';
+					$file = $useMobileLayout ? 'nav-mobile.js' : 'nav-tabs.js';
 					return new FilePath( $file );
 				},
 			],
+			'skinPrefs.js',
+			'signature.js',
+			'timezone.js',
 		],
 		'messages' => [
 			'prefs-tabs-navigation-hint',
@@ -2749,6 +2748,16 @@ return [
 	'mediawiki.special.userlogin.signup.styles' => [
 		'skinStyles' => [
 			'default' => 'resources/src/mediawiki.special.userlogin.signup.styles/signup.less',
+		],
+	],
+	'mediawiki.special.specialpages' => [
+		'localBasePath' => MW_INSTALL_PATH . '/resources/src',
+		'remoteBasePath' => "$wgResourceBasePath/resources/src",
+		'packageFiles' => [
+			'mediawiki.special.specialpages.js',
+		],
+		'dependencies' => [
+			'oojs-ui-core',
 		],
 	],
 	'mediawiki.special.userrights' => [

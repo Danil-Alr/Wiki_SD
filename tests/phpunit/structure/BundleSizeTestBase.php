@@ -38,8 +38,10 @@ abstract class BundleSizeTestBase extends MediaWikiIntegrationTestCase {
 		'mw.loader.impl' => 17
 	];
 
-	public function provideBundleSize() {
-		foreach ( json_decode( file_get_contents( $this->getBundleSizeConfig() ), true ) as $testCase ) {
+	public static function provideBundleSize() {
+		$content = json_decode( file_get_contents( static::getBundleSizeConfigData() ), true );
+
+		foreach ( $content as $testCase ) {
 			yield $testCase['resourceModule'] => [ $testCase ];
 		}
 	}
@@ -116,7 +118,7 @@ abstract class BundleSizeTestBase extends MediaWikiIntegrationTestCase {
 	/**
 	 * @return string Path to bundlesize.config.json
 	 */
-	abstract public function getBundleSizeConfig(): string;
+	abstract public static function getBundleSizeConfigData(): string;
 
 	/**
 	 * @return string Skin name

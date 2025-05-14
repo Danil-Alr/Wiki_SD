@@ -1,9 +1,11 @@
 <?php
 
+use MediaWiki\Exception\MWException;
+use MediaWiki\Exception\MWExceptionHandler;
 use MediaWiki\MainConfigNames;
 
 /**
- * @covers \MWException
+ * @covers \MediaWiki\Exception\MWException
  * @author Antoine Musso
  */
 class MWExceptionTest extends MediaWikiIntegrationTestCase {
@@ -23,9 +25,6 @@ class MWExceptionTest extends MediaWikiIntegrationTestCase {
 		$this->assertTrue( $e->isLoggable() );
 	}
 
-	/**
-	 * @covers \MWException::report
-	 */
 	public function testReport() {
 		// Turn off to keep mw-error.log file empty in CI (and thus avoid build failure)
 		$this->overrideConfigValue( MainConfigNames::DebugLogGroups, [] );

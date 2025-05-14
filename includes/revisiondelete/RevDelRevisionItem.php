@@ -21,12 +21,12 @@
 
 use MediaWiki\Api\ApiResult;
 use MediaWiki\ChangeTags\ChangeTags;
+use MediaWiki\Html\Html;
 use MediaWiki\Linker\Linker;
 use MediaWiki\MediaWikiServices;
 use MediaWiki\RecentChanges\RecentChange;
 use MediaWiki\Revision\RevisionRecord;
 use MediaWiki\RevisionList\RevisionListBase;
-use MediaWiki\Xml\Xml;
 
 /**
  * Item class for a live revision table row
@@ -216,9 +216,9 @@ class RevDelRevisionItem extends RevDelItem {
 				$this->list->getContext()
 			);
 			$content .= " $tagSummary";
-			$attribs['class'] = implode( ' ', $classes );
+			$attribs['class'] = $classes;
 		}
-		return Xml::tags( 'li', $attribs, $content );
+		return Html::rawElement( 'li', $attribs, $content );
 	}
 
 	/**

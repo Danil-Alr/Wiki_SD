@@ -39,24 +39,27 @@ class StatsFactoryTest extends TestCase {
 
 	public function testUnsupportedOutputFormat() {
 		$this->expectException( UnsupportedFormatException::class );
+		$this->expectExceptionMessage( 'Unsupported metrics format \'999\' - See OutputFormats::class.' );
 		OutputFormats::getNewFormatter( 999 );
 	}
 
 	public function testEmptyPrefix() {
 		$this->expectException( InvalidArgumentException::class );
+		$this->expectExceptionMessage( 'UDPEmitter: Prefix cannot be empty.' );
 		OutputFormats::getNewEmitter( '', new StatsCache, OutputFormats::getNewFormatter( OutputFormats::STATSD ), '' );
 	}
 
 	public function testUnsetNameConfig() {
 		$m = StatsFactory::newNull();
 		$this->expectException( InvalidArgumentException::class );
+		$this->expectExceptionMessage( 'Stats: Metric name cannot be empty.' );
 		$m->getCounter( '' );
 	}
 
 	public function testNormalizeString() {
 		$this->assertEquals(
 			'new_metric_and_things',
-			StatsUtils::normalizeString( 'new metric  @#&^and *-&-*things-*&-*!@#&^%#$' )
+			StatsUtils::normalizeString( '_new metric  ____@#&^and *-&-*things-*&-*!@#&^%#$__' )
 		);
 	}
 
@@ -86,17 +89,5 @@ class StatsFactoryTest extends TestCase {
 		$this->assertInstanceOf( NullMetric::class, $metric );
 		// NullMetric should not throw for any method call
 		$metric->increment();
-	}
-
-	public function testGetCacheCount() {
-		$statsFactory = StatsFactory::newNull();
-		$i = 0;
-		while ( $i < 10 ) {
-			$statsFactory->getCounter( 'foo' )->incrementBy( 2 );
-			$statsFactory->getGauge( 'bar' )->set( $i );
-			$statsFactory->getTiming( 'baz' )->observe( 100 );
-			$i++;
-		}
-		$this->assertEquals( 30, $statsFactory->getCacheCount() );
 	}
 }

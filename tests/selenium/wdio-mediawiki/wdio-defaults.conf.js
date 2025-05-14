@@ -163,9 +163,14 @@ exports.config = {
 	 * Executed after a Mocha test ends.
 	 *
 	 * @param {Object} test Mocha Test object
+	 * @param {Object} context scope object the test was executed with
+	 * @param {Object} result hook result
 	 */
-	afterTest: async function ( test ) {
-		await saveScreenshot( `${ test.parent }-${ test.title }` );
-		stopVideo( ffmpeg );
+	afterTest: async function ( test, context, result ) {
+		try {
+			await saveScreenshot( `${ test.parent }-${ test.title }${ result.passed ? '' : '-failed' }` );
+		} finally {
+			stopVideo( ffmpeg );
+		}
 	}
 };

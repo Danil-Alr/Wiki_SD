@@ -27,6 +27,7 @@ use OutOfBoundsException;
 use OutOfRangeException;
 use Psr\Log\LoggerInterface;
 use Wikimedia\Stats\Emitters\NullEmitter;
+use Wikimedia\Stats\Formatters\DogStatsdFormatter;
 use Wikimedia\Stats\Metrics\MetricInterface;
 
 /**
@@ -52,7 +53,14 @@ class UnitTestingHelper {
 	public function __construct() {
 		$this->cache = new StatsCache();
 		$this->logger = LoggerFactory::getInstance( 'Stats' );
-		$this->factory = new StatsFactory( $this->cache, new NullEmitter(), $this->logger );
+		// Disable StatsFactory::flush() and its StatsCache::clear() calls, because automatic
+		// flushes would otherwise delete metrics before we can assert them, e.g. after whenever
+		// a subject under test commits a database transaction or when a tested Maintenance script
+		// prints output.
+		$this->factory = new class( $this->cache, new NullEmitter(), $this->logger ) extends StatsFactory {
+			public function flush(): void {
+			}
+		};
 	}
 
 	/**
@@ -69,6 +77,31 @@ class UnitTestingHelper {
 	 */
 	public function getStatsFactory(): StatsFactory {
 		return $this->factory;
+	}
+
+	/**
+	 * Get all samples in dogstatsd format
+	 *
+	 * @return string[]
+	 */
+	public function getAllFormatted(): array {
+		$output = [];
+		$dogFmt = new DogStatsdFormatter();
+		foreach ( $this->cache->getAllMetrics() as $metric ) {
+			$output = array_merge( $output, $dogFmt->getFormattedSamples( 'mediawiki', $metric ) );
+		}
+		return $output;
+	}
+
+	/**
+	 * Get all samples in dogstatsd format and clear the buffer
+	 *
+	 * @return string[]
+	 */
+	public function consumeAllFormatted(): array {
+		$output = $this->getAllFormatted();
+		$this->cache->clear();
+		return $output;
 	}
 
 	/**
@@ -164,14 +197,13 @@ class UnitTestingHelper {
 		$key = StatsCache::cacheKey( $this->component, $this->getName( $selector ) );
 		$metric = $this->cache->getAllMetrics()[$key] ?? null;
 		if ( $metric === null ) {
-			# provide debug info
-			$this->logger->debug( 'Metrics in cache:' );
+			$actual = 'Actual metrics:';
 			foreach ( $this->cache->getAllMetrics() as $metric ) {
 				$name = $metric->getName();
 				$sampleCount = $metric->getSampleCount();
-				$this->logger->debug( "  $name", [ 'samples' => $sampleCount ] );
+				$actual .= "\n  $name ($sampleCount samples)";
 			}
-			throw new OutOfBoundsException( "Could not find metric with key '$key'" );
+			throw new OutOfBoundsException( "Could not find metric with key '$key'\n\n$actual" );
 		}
 		return $metric;
 	}
@@ -181,8 +213,8 @@ class UnitTestingHelper {
 		$filters = $this->getFilters( $selector );
 		$labelKeys = $metric->getLabelKeys();
 		$left = $metric->getSamples();
-		$right = [];
 		foreach ( $filters as $filter ) {
+			$right = [];
 			[ $key, $value, $operator ] = $filter;
 			$labelPosition = array_search( $key, $labelKeys );
 			foreach ( $left as $sample ) {
@@ -192,8 +224,11 @@ class UnitTestingHelper {
 			}
 			$left = $right;
 		}
-		if ( count( $left ) === 0 ) {
-			throw new OutOfRangeException( "Metric selector '$selector' matched zero samples." );
+		if ( !$left ) {
+			$dogFmt = new DogStatsdFormatter();
+			$actual = 'Actual samples:'
+				. "\n" . implode( "\n", $dogFmt->getFormattedSamples( 'mediawiki', $metric ) );
+			throw new OutOfRangeException( "Metric selector '$selector' matched zero samples.\n\n$actual" );
 		}
 		return $left;
 	}
@@ -250,8 +285,8 @@ class UnitTestingHelper {
 			);
 			throw new InvalidArgumentException( "Filter components cannot be empty." );
 		}
-		$key = preg_replace( '/[^a-z\d_]+/i', '', $key );
-		$value = preg_replace( '/[^a-z\d_]+/i', '', $value );
+		$key = preg_replace( '/[^a-zA-Z0-9_]+/', '', $key );
+		$value = preg_replace( '/[^a-zA-Z0-9_]+/', '', $value );
 		return [ $key, $value, $operator ];
 	}
 

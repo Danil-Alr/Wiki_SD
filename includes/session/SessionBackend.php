@@ -29,6 +29,7 @@ use MediaWiki\HookContainer\HookContainer;
 use MediaWiki\HookContainer\HookRunner;
 use MediaWiki\MainConfigNames;
 use MediaWiki\MediaWikiServices;
+use MediaWiki\Request\FauxRequest;
 use MediaWiki\Request\WebRequest;
 use MediaWiki\User\User;
 use MWRestrictions;
@@ -74,19 +75,20 @@ final class SessionBackend {
 
 	/**
 	 * The reason for the next persistSession/unpersistSession call. Only used for logging. Can be:
-	 * - 'renew': triggered by a renew() call)
+	 * - 'renew', 'resetId', 'setRememberUser', 'setUser', 'setForceHTTPS', 'setLoggedOutTimestamp',
+	 *   'setProviderMetadata': triggered by a call to that method
+	 * - 'manual': triggered by a persist() / unpersist() call
 	 * - 'no-store': the session was not found in the session store
-	 * - 'no-expiry': there was no expiry * in the session store data; this probably shouldn't happen
+	 * - 'no-expiry': there was no expiry in the session store data; this probably shouldn't happen
+	 * - 'token': the user did not have a token
 	 * - null otherwise.
-	 * @var string|null
 	 */
-	private $persistenceChangeType;
+	private ?string $persistenceChangeReason = null;
 
 	/**
 	 * The data from the previous logPersistenceChange() log event. Used for deduplication.
-	 * @var array
 	 */
-	private $persistenceChangeData = [];
+	private array $persistenceChangeData = [];
 
 	/** @var bool */
 	private $metaDirty = false;
@@ -185,7 +187,7 @@ final class SessionBackend {
 			$this->data = [];
 			$this->dataDirty = true;
 			$this->metaDirty = true;
-			$this->persistenceChangeType = 'no-store';
+			$this->persistenceChangeReason = 'no-store';
 			$this->logger->debug(
 				'SessionBackend "{session}" is unsaved, marking dirty in constructor',
 				[
@@ -200,7 +202,7 @@ final class SessionBackend {
 				$this->expires = (int)$blob['metadata']['expires'];
 			} else {
 				$this->metaDirty = true;
-				$this->persistenceChangeType = 'no-expiry';
+				$this->persistenceChangeReason = 'no-expiry';
 				$this->logger->debug(
 					'SessionBackend "{session}" metadata dirty due to missing expiration timestamp',
 					[
@@ -229,11 +231,11 @@ final class SessionBackend {
 	 * @param int $index
 	 */
 	public function deregisterSession( $index ) {
-		unset( $this->requests[$index] );
-		if ( !$this->shutdown && !count( $this->requests ) ) {
+		if ( !$this->shutdown && count( $this->requests ) <= 1 ) {
 			$this->save( true );
 			$this->provider->getManager()->deregisterSessionBackend( $this );
 		}
+		unset( $this->requests[$index] );
 	}
 
 	/**
@@ -281,6 +283,7 @@ final class SessionBackend {
 			$this->provider->getManager()->changeBackendId( $this );
 			$this->provider->sessionIdWasReset( $this, $oldId );
 			$this->metaDirty = true;
+			$this->persistenceChangeReason ??= 'resetId';
 			$this->logger->debug(
 				'SessionBackend "{session}" metadata dirty due to ID reset (formerly "{oldId}")',
 				[
@@ -295,6 +298,11 @@ final class SessionBackend {
 
 			$this->autosave();
 
+			$this->logSessionWrite( [
+				'old_session_id' => $oldId,
+				'action' => 'delete',
+				'reason' => 'ID reset',
+			] );
 			// Delete the data for the old session ID now
 			$this->store->delete( $this->store->makeKey( 'MWSession', $oldId ) );
 		}
@@ -332,6 +340,7 @@ final class SessionBackend {
 			$this->persist = true;
 			$this->forcePersist = true;
 			$this->metaDirty = true;
+			$this->persistenceChangeReason ??= 'manual';
 			$this->logger->debug(
 				'SessionBackend "{session}" force-persist due to persist()',
 				[
@@ -363,7 +372,12 @@ final class SessionBackend {
 			$this->persist = false;
 			$this->forcePersist = true;
 			$this->metaDirty = true;
+			$this->persistenceChangeReason ??= 'manual';
 
+			$this->logSessionWrite( [
+				'action' => 'delete',
+				'reason' => 'unpersist',
+			] );
 			// Delete the session data, so the local cache-only write in
 			// self::save() doesn't get things out of sync with the backend.
 			$this->store->delete( $this->store->makeKey( 'MWSession', (string)$this->id ) );
@@ -390,6 +404,7 @@ final class SessionBackend {
 		if ( $this->remember !== (bool)$remember ) {
 			$this->remember = (bool)$remember;
 			$this->metaDirty = true;
+			$this->persistenceChangeReason ??= 'setRememberUser';
 			$this->logger->debug(
 				'SessionBackend "{session}" metadata dirty due to remember-user change',
 				[
@@ -459,6 +474,7 @@ final class SessionBackend {
 
 		$this->user = $user;
 		$this->metaDirty = true;
+		$this->persistenceChangeReason ??= 'setUser';
 		$this->logger->debug(
 			'SessionBackend "{session}" metadata dirty due to user change',
 			[
@@ -495,6 +511,7 @@ final class SessionBackend {
 		if ( $this->forceHTTPS !== (bool)$force ) {
 			$this->forceHTTPS = (bool)$force;
 			$this->metaDirty = true;
+			$this->persistenceChangeReason ??= 'setForceHTTPS';
 			$this->logger->debug(
 				'SessionBackend "{session}" metadata dirty due to force-HTTPS change',
 				[
@@ -520,6 +537,7 @@ final class SessionBackend {
 		if ( $this->loggedOut !== $ts ) {
 			$this->loggedOut = $ts;
 			$this->metaDirty = true;
+			$this->persistenceChangeReason ??= 'setLoggedOutTimestamp';
 			$this->logger->debug(
 				'SessionBackend "{session}" metadata dirty due to logged-out-timestamp change',
 				[
@@ -549,6 +567,7 @@ final class SessionBackend {
 		if ( $this->providerMetadata !== $metadata ) {
 			$this->providerMetadata = $metadata;
 			$this->metaDirty = true;
+			$this->persistenceChangeReason ??= 'setProviderMetadata';
 			$this->logger->debug(
 				'SessionBackend "{session}" metadata dirty due to provider metadata change',
 				[
@@ -617,6 +636,7 @@ final class SessionBackend {
 	public function renew() {
 		if ( time() + $this->lifetime / 2 > $this->expires ) {
 			$this->metaDirty = true;
+			$this->persistenceChangeReason ??= 'renew';
 			$this->logger->debug(
 				'SessionBackend "{callers}" metadata dirty for renew(): {callers}',
 				[
@@ -624,7 +644,6 @@ final class SessionBackend {
 					'callers' => wfGetAllCallers( 5 ),
 				] );
 			if ( $this->persist ) {
-				$this->persistenceChangeType = 'renew';
 				$this->forcePersist = true;
 				$this->logger->debug(
 					'SessionBackend "{session}" force-persist for renew(): {callers}',
@@ -710,6 +729,7 @@ final class SessionBackend {
 				} );
 			}
 			$this->metaDirty = true;
+			$this->persistenceChangeReason ??= 'token';
 		}
 		// @codeCoverageIgnoreEnd
 
@@ -761,8 +781,10 @@ final class SessionBackend {
 			}
 		}
 
+		$forcePersist = $this->forcePersist;
+		$persistenceChangeReason = $this->persistenceChangeReason;
 		$this->forcePersist = false;
-		$this->persistenceChangeType = null;
+		$this->persistenceChangeReason = null;
 
 		if ( !$this->metaDirty && !$this->dataDirty ) {
 			return;
@@ -789,6 +811,20 @@ final class SessionBackend {
 			if ( $metadata[$k] !== $v ) {
 				throw new \UnexpectedValueException( "SessionMetadata hook changed metadata key \"$k\"" );
 			}
+		}
+
+		if ( $this->persist ) {
+			$this->logSessionWrite( [
+				'remember' => $metadata['remember'],
+				'metaDirty' => $this->metaDirty,
+				'dataDirty' => $this->dataDirty,
+				'forcePersist' => $forcePersist,
+				'action' => 'write',
+				// 'other' probably means the session had dirty data.
+				// @phan-suppress-next-line PhanCoalescingNeverNull
+				'reason' => $persistenceChangeReason ?? 'other',
+			] );
+
 		}
 
 		$flags = $this->persist ? 0 : CachedBagOStuff::WRITE_CACHE_ONLY;
@@ -846,14 +882,16 @@ final class SessionBackend {
 		}
 
 		$verb = $persist ? 'Persisting' : 'Unpersisting';
-		if ( $this->persistenceChangeType === 'renew' ) {
-			$message = "$verb session for renewal";
-		} elseif ( $this->persistenceChangeType === 'no-store' ) {
+		if ( $this->persistenceChangeReason === 'no-store' ) {
 			$message = "$verb session due to no pre-existing stored session";
-		} elseif ( $this->persistenceChangeType === 'no-expiry' ) {
+		} elseif ( $this->persistenceChangeReason === 'no-expiry' ) {
 			$message = "$verb session due to lack of stored expiry";
-		} elseif ( $this->persistenceChangeType === null ) {
-			$message = "$verb session for unknown reason";
+		} elseif ( $this->persistenceChangeReason === 'manual' ) {
+			$message = "$verb session due to " . ( $persist ? 'persist' : 'unpersist' ) . "() call";
+		} elseif ( $this->persistenceChangeReason === null ) {
+			$message = "$verb session for other reason";
+		} else {
+			$message = "$verb session due to {$this->persistenceChangeReason}() call";
 		}
 
 		// Because SessionManager repeats session loading several times in the same request,
@@ -864,15 +902,12 @@ final class SessionBackend {
 		if ( $this->persistenceChangeData
 			&& $this->persistenceChangeData['id'] === $id
 			&& $this->persistenceChangeData['user'] === $user
-			// @phan-suppress-next-line PhanPossiblyUndeclaredVariable message always set
 			&& $this->persistenceChangeData['message'] === $message
 		) {
 			return;
 		}
-		// @phan-suppress-next-line PhanPossiblyUndeclaredVariable message always set
 		$this->persistenceChangeData = [ 'id' => $id, 'user' => $user, 'message' => $message ];
 
-		// @phan-suppress-next-line PhanTypeMismatchArgumentNullable,PhanPossiblyUndeclaredVariable message always set
 		$this->logger->info( $message, [
 			'id' => $id,
 			'provider' => get_class( $this->getProvider() ),
@@ -880,6 +915,32 @@ final class SessionBackend {
 			'clientip' => $request->getIP(),
 			'userAgent' => $request->getHeader( 'user-agent' ),
 		] );
+	}
+
+	/**
+	 * @param array $data Additional log context. Should have at least the following keys:
+	 *   - action: 'write' or 'delete'.
+	 *   - reason: why the write happened
+	 * @see SessionManager::logSessionWrite()
+	 */
+	private function logSessionWrite( array $data = [] ): void {
+		$id = $this->getId();
+		$user = $this->getUser()->isAnon() ? '<anon>' : $this->getUser()->getName();
+		// No great way to find out what request SessionBackend is being called for, but it's
+		// rare to have multiple ones which are significantly different, and even rarer for the
+		// first of those not to be the real one.
+		$request = reset( $this->requests );
+		// Don't require $this->requests to be non-empty for unit tests, as it's hard to enforce
+		if ( $request === false && defined( 'MW_PHPUNIT_TEST' ) ) {
+			$request = new FauxRequest();
+		}
+		$this->logger->info( 'Session store: {action} for {reason}', $data + [
+				'id' => $id,
+				'provider' => get_class( $this->getProvider() ),
+				'user' => $user,
+				'clientip' => $request->getIP(),
+				'userAgent' => $request->getHeader( 'user-agent' ),
+			] );
 	}
 
 }

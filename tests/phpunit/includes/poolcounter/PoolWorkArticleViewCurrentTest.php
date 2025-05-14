@@ -1,6 +1,7 @@
 <?php
 
 use MediaWiki\Json\JsonCodec;
+use MediaWiki\Page\WikiPage;
 use MediaWiki\Parser\ParserCache;
 use MediaWiki\Parser\ParserOptions;
 use MediaWiki\Parser\ParserOutput;
@@ -44,14 +45,17 @@ class PoolWorkArticleViewCurrentTest extends PoolWorkArticleViewTest {
 
 		$parserCache = $this->parserCache ?: $this->installParserCache();
 
+		$pool = $this->getServiceContainer()->getPoolCounterFactory()->create(
+			'ArticleView',
+			'test:' . $rev->getId()
+		);
 		return new PoolWorkArticleViewCurrent(
-			'test:' . $rev->getId(),
+			$pool,
 			$page,
 			$rev,
 			$options,
 			$this->getServiceContainer()->getRevisionRenderer(),
 			$parserCache,
-			$this->getServiceContainer()->getConnectionProvider(),
 			$this->getServiceContainer()->getChronologyProtector(),
 			$this->getLoggerSpi(),
 			$this->getServiceContainer()->getWikiPageFactory()
@@ -120,15 +124,14 @@ class PoolWorkArticleViewCurrentTest extends PoolWorkArticleViewTest {
 	}
 
 	public function testFallbackFromOutdatedParserCache() {
-		// Fake Unix timestamps
-		$lastWrite = 10;
-		$outdated = $lastWrite;
+		// Fake Unix timestamp
+		$cacheTime = 1301648400;
 
 		$chronologyProtector = $this->createNoOpMock( ChronologyProtector::class, [ 'getTouched' ] );
-		$chronologyProtector->method( 'getTouched' )->willReturn( $lastWrite );
+		$chronologyProtector->method( 'getTouched' )->willReturn( true );
 
 		$output = $this->createNoOpMock( ParserOutput::class, [ 'getCacheTime' ] );
-		$output->method( 'getCacheTime' )->willReturn( $outdated );
+		$output->method( 'getCacheTime' )->willReturn( $cacheTime );
 		$this->parserCache = $this->createNoOpMock( ParserCache::class, [ 'getDirty' ] );
 		$this->parserCache->method( 'getDirty' )->willReturn( $output );
 
@@ -146,15 +149,14 @@ class PoolWorkArticleViewCurrentTest extends PoolWorkArticleViewTest {
 	}
 
 	public function testFallbackFromMoreRecentParserCache() {
-		// Fake Unix timestamps
-		$lastWrite = 10;
-		$moreRecent = $lastWrite + 1;
+		// Fake Unix timestamp
+		$cacheTime = 1301648400;
 
 		$chronologyProtector = $this->createNoOpMock( ChronologyProtector::class, [ 'getTouched' ] );
-		$chronologyProtector->method( 'getTouched' )->willReturn( $lastWrite );
+		$chronologyProtector->method( 'getTouched' )->willReturn( false );
 
 		$output = $this->createNoOpMock( ParserOutput::class, [ 'getCacheTime' ] );
-		$output->method( 'getCacheTime' )->willReturn( $moreRecent );
+		$output->method( 'getCacheTime' )->willReturn( $cacheTime );
 		$this->parserCache = $this->createNoOpMock( ParserCache::class, [ 'getDirty' ] );
 		$this->parserCache->method( 'getDirty' )->willReturn( $output );
 

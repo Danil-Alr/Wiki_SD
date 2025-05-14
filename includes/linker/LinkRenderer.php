@@ -20,7 +20,6 @@
  */
 namespace MediaWiki\Linker;
 
-use HtmlArmor;
 use MediaWiki\Cache\LinkCache;
 use MediaWiki\Config\ServiceOptions;
 use MediaWiki\HookContainer\HookContainer;
@@ -37,6 +36,7 @@ use MediaWiki\Title\Title;
 use MediaWiki\Title\TitleFormatter;
 use MediaWiki\Title\TitleValue;
 use Wikimedia\Assert\Assert;
+use Wikimedia\HtmlArmor\HtmlArmor;
 use Wikimedia\Parsoid\Core\LinkTarget;
 
 /**
@@ -388,14 +388,13 @@ class LinkRenderer {
 	public function makeExternalLink(
 		string $url, $text, $title, $linktype = '', $attribs = []
 	) {
-		$class = 'external';
+		$attribs['class'] ??= [];
+		Html::addClass( $attribs['class'], 'external' );
 		if ( $linktype ) {
-			$class .= " $linktype";
+			Html::addClass( $attribs['class'], $linktype );
 		}
-		if ( isset( $attribs['class'] ) && $attribs['class'] ) {
-			$class .= " {$attribs['class']}";
-		}
-		$attribs['class'] = $class;
+		// Stringify attributes for hook compatibility
+		$attribs['class'] = Html::expandClassList( $attribs['class'] );
 
 		if ( $text instanceof Message ) {
 			$text = $text->escaped();
@@ -406,14 +405,10 @@ class LinkRenderer {
 		}
 
 		$newRel = Parser::getExternalLinkRel( $url, $title );
-		if ( !isset( $attribs['rel'] ) || $attribs['rel'] === '' ) {
-			$attribs['rel'] = $newRel;
-		} elseif ( $newRel !== null ) {
-			// Merge the rel attributes.
-			$newRels = explode( ' ', $newRel );
-			$oldRels = explode( ' ', $attribs['rel'] );
-			$combined = array_unique( array_merge( $newRels, $oldRels ) );
-			$attribs['rel'] = implode( ' ', $combined );
+		if ( $newRel !== null ) {
+			$attribs['rel'] ??= [];
+			Html::addClass( $attribs['rel'], $newRel );
+			$attribs['rel'] = Html::expandClassList( $attribs['rel'] );
 		}
 		$link = '';
 		$success = $this->hookRunner->onLinkerMakeExternalLink(
@@ -443,9 +438,13 @@ class LinkRenderer {
 	 * @param Language $lang
 	 * @param Title $target Destination to redirect
 	 * @param bool $forceKnown Should the image be shown as a bluelink regardless of existence?
+	 * @param bool $addLinkTag Should a <link> tag be added?
 	 * @return string Containing HTML with redirect link
 	 */
-	public function makeRedirectHeader( Language $lang, Title $target, bool $forceKnown = false ) {
+	public function makeRedirectHeader(
+		Language $lang, Title $target,
+		bool $forceKnown = false, bool $addLinkTag = false
+	) {
 		$html = '<ul class="redirectText">';
 		if ( $forceKnown ) {
 			$link = $this->makeKnownLink(
@@ -466,13 +465,17 @@ class LinkRenderer {
 		}
 
 		$redirectToText = wfMessage( 'redirectto' )->inLanguage( $lang )->escaped();
+		$linkTag = '';
+		if ( $addLinkTag ) {
+			$linkTag = Html::rawElement( 'link', [ 'rel' => 'mw:PageProp/redirect' ] );
+		}
 
 		return Html::rawElement(
 			'div', [ 'class' => 'redirectMsg' ],
 			Html::rawElement( 'p', [], $redirectToText ) .
 			Html::rawElement( 'ul', [ 'class' => 'redirectText' ],
 				Html::rawElement( 'li', [], $link ) )
-		);
+		) . $linkTag;
 	}
 
 	/**

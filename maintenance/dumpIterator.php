@@ -138,7 +138,7 @@ abstract class DumpIterator extends Maintenance {
 		}
 	}
 
-	public static function disableInterwikis( $prefix, &$data ) {
+	public static function disableInterwikis( string $prefix, array &$data ): bool {
 		# Title::newFromText will check on each namespaced article if it's an interwiki.
 		# We always answer that it is not.
 
@@ -203,6 +203,7 @@ class SearchDump extends DumpIterator {
 		$this->addOption( 'regex', 'Searching regex', true, true );
 	}
 
+	/** @inheritDoc */
 	public function getDbType() {
 		return Maintenance::DB_NONE;
 	}

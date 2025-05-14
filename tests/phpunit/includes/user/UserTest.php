@@ -1,5 +1,6 @@
 <?php
 
+use MediaWiki\Block\BlockUser;
 use MediaWiki\Block\CompositeBlock;
 use MediaWiki\Block\DatabaseBlock;
 use MediaWiki\Block\SystemBlock;
@@ -315,7 +316,7 @@ class UserTest extends MediaWikiIntegrationTestCase {
 		$status = $this->user->checkPasswordValidity( 'Password1234' );
 		$this->assertStatusWarning( 'isValidPassword returned false', $status );
 
-		$this->removeTemporaryHook( 'isValidPassword' );
+		$this->clearHook( 'isValidPassword' );
 
 		$this->setTemporaryHook( 'isValidPassword', static function ( $password, &$result, $user ) {
 			$result = true;
@@ -324,7 +325,7 @@ class UserTest extends MediaWikiIntegrationTestCase {
 		$status = $this->user->checkPasswordValidity( 'Password1234' );
 		$this->assertStatusGood( $status );
 
-		$this->removeTemporaryHook( 'isValidPassword' );
+		$this->clearHook( 'isValidPassword' );
 
 		$this->setTemporaryHook( 'isValidPassword', static function ( $password, &$result, $user ) {
 			$result = 'isValidPassword returned true';
@@ -333,7 +334,7 @@ class UserTest extends MediaWikiIntegrationTestCase {
 		$status = $this->user->checkPasswordValidity( 'Password1234' );
 		$this->assertStatusWarning( 'isValidPassword returned true', $status );
 
-		$this->removeTemporaryHook( 'isValidPassword' );
+		$this->clearHook( 'isValidPassword' );
 
 		// On the forbidden list
 		$user = User::newFromName( 'Useruser' );
@@ -419,7 +420,7 @@ class UserTest extends MediaWikiIntegrationTestCase {
 		$user->logout();
 		$this->assertTrue( $user->isRegistered() );
 
-		$this->removeTemporaryHook( 'UserLogout' );
+		$this->clearHook( 'UserLogout' );
 		$user->logout();
 		$this->assertFalse( $user->isRegistered() );
 
@@ -923,6 +924,7 @@ class UserTest extends MediaWikiIntegrationTestCase {
 
 		$status = $user->addToDatabase();
 		$this->assertStatusOK( $status, 'User can be added to the database' );
+		$this->hideDeprecated( User::class . '::whoIs' );
 		$this->assertSame( $name, User::whoIs( $user->getId() ) );
 	}
 
@@ -1387,7 +1389,7 @@ class UserTest extends MediaWikiIntegrationTestCase {
 		} );
 		$user->setEmail( 'TestEmail@mediawiki.org' );
 
-		$this->removeTemporaryHook( 'UserSetEmail' );
+		$this->clearHook( 'UserSetEmail' );
 
 		$this->setTemporaryHook( 'UserSetEmail', static function ( $user, &$email ) {
 			$email = 'SettingIntercepted@mediawiki.org';
@@ -1408,8 +1410,8 @@ class UserTest extends MediaWikiIntegrationTestCase {
 			'Hooks can override getting email address'
 		);
 
-		$this->removeTemporaryHook( 'UserGetEmail' );
-		$this->removeTemporaryHook( 'UserSetEmail' );
+		$this->clearHook( 'UserGetEmail' );
+		$this->clearHook( 'UserSetEmail' );
 
 		$user->invalidateEmail();
 		$this->assertSame(
@@ -1761,5 +1763,25 @@ class UserTest extends MediaWikiIntegrationTestCase {
 		RequestContext::getMain()->getRequest()->setIP( '1.2.3.4' );
 		$this->assertTrue( $this->user->spreadAnyEditBlock() );
 		$this->assertNotNull( $this->getServiceContainer()->getBlockManager()->getIpBlock( '1.2.3.4', true ) );
+	}
+
+	/**
+	 * @covers \MediaWiki\User\User::spreadAnyEditBlock
+	 * @covers \MediaWiki\User\User::spreadBlock
+	 */
+	public function testSpreadAnyEditBlockWhenMultiblocked() {
+		$this->overrideConfigValue( MainConfigNames::EnableMultiBlocks, true );
+		$this->getServiceContainer()->getBlockUserFactory()->newBlockUser(
+			$this->user, $this->getTestSysop()->getAuthority(), '1 day', '', [ 'isAutoblocking' => false ]
+		)->placeBlockUnsafe();
+		$this->getServiceContainer()->getBlockUserFactory()->newBlockUser(
+			$this->user, $this->getTestSysop()->getAuthority(), 'indefinite', '', [ 'isAutoblocking' => true ]
+		)->placeBlockUnsafe( BlockUser::CONFLICT_NEW );
+
+		RequestContext::getMain()->getRequest()->setIP( '1.2.3.4' );
+		$this->assertTrue( $this->user->spreadAnyEditBlock() );
+
+		$autoblocks = $this->getServiceContainer()->getBlockManager()->getIpBlock( '1.2.3.4', true );
+		$this->assertCount( 1, $autoblocks->toArray() );
 	}
 }

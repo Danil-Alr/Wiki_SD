@@ -1,6 +1,7 @@
 <?php
 
 use MediaWiki\Context\RequestContext;
+use MediaWiki\FileRepo\File\UnregisteredLocalFile;
 use MediaWiki\FileRepo\ThumbnailEntryPoint;
 use MediaWiki\MainConfigNames;
 use MediaWiki\Permissions\SimpleAuthority;
@@ -232,6 +233,38 @@ class ThumbnailEntryPointTest extends MediaWikiIntegrationTestCase {
 			[
 				'f' => 'Test.png',
 				'width' => self::$uniqueWidth++
+			]
+		);
+		$entryPoint = $this->getEntryPoint( $env );
+
+		$entryPoint->run();
+		$output = $entryPoint->getCapturedOutput();
+
+		$env->assertStatusCode( 400, $output );
+	}
+
+	/** Verify that the exception from ImageHandler:makeParamString is handled */
+	public function testNoWidth() {
+		$env = $this->makeEnvironment(
+			[
+				'f' => 'Test.png',
+				// no width
+			]
+		);
+		$entryPoint = $this->getEntryPoint( $env );
+
+		$entryPoint->run();
+		$output = $entryPoint->getCapturedOutput();
+
+		$env->assertStatusCode( 400, $output );
+	}
+
+	/** Verify that the exception from ImageHandler:makeParamString is handled in redirect case - T387684 */
+	public function testNoWidthRedirect() {
+		$env = $this->makeEnvironment(
+			[
+				'f' => 'Redirect_to_Test.png',
+				// no width
 			]
 		);
 		$entryPoint = $this->getEntryPoint( $env );

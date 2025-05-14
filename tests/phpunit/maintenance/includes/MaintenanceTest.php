@@ -2,9 +2,9 @@
 
 namespace MediaWiki\Tests\Maintenance\Includes;
 
-use AtomicSectionUpdate;
 use MediaWiki\Config\Config;
 use MediaWiki\Config\HashConfig;
+use MediaWiki\Deferred\AtomicSectionUpdate;
 use MediaWiki\Deferred\DeferredUpdates;
 use MediaWiki\Maintenance\Maintenance;
 use MediaWiki\MediaWikiServices;
@@ -488,9 +488,6 @@ class MaintenanceTest extends MaintenanceBaseTestCase {
 		$this->assertOutputPrePostShutdown( "foobar\n\n", false );
 	}
 
-	/**
-	 * @covers \MediaWiki\Maintenance\Maintenance::getConfig
-	 */
 	public function testGetConfig() {
 		$this->assertInstanceOf( Config::class, $this->maintenance->getConfig() );
 		$this->assertSame(
@@ -499,9 +496,6 @@ class MaintenanceTest extends MaintenanceBaseTestCase {
 		);
 	}
 
-	/**
-	 * @covers \MediaWiki\Maintenance\Maintenance::setConfig
-	 */
 	public function testSetConfig() {
 		$conf = new HashConfig();
 		$this->maintenance->setConfig( $conf );
